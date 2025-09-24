@@ -35,10 +35,13 @@
   </div>
 </template>
 
-<script>
-export default {
-  name: 'Sidebar'
-}
+<script setup>
+import { useRoute, useRouter } from 'vue-router'
+
+const route = useRoute()
+const router = useRouter()
+
+const emit = defineEmits(['showBlankAI', 'showDiary', 'showSettings'])
 </script>
 
 <style lang="scss" scoped>

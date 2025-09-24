@@ -58,122 +58,124 @@
   </div>
 </template>
 
-<script>
-export default {
-  name: 'LandingPage',
-  data() {
-    return {
-      animationFrame: null,
-      heartbeatPhase: 0,
-      isTransitioning: false
-    }
-  },
-  mounted() {
-    this.startAnimation()
-  },
-  beforeUnmount() {
-    if (this.animationFrame) {
-      cancelAnimationFrame(this.animationFrame)
-    }
-  },
-  methods: {
-    startAnimation() {
-      const startTime = Date.now()
-      
-      const animate = () => {
-        const elapsed = (Date.now() - startTime) / 1000
-        this.heartbeatPhase = (elapsed % 0.8) / 0.8
-        this.updateParticles()
-        this.animationFrame = requestAnimationFrame(animate)
-      }
-      animate()
-    },
-    
-    updateParticles() {
-      const elements = document.querySelectorAll('.light-node')
-      elements.forEach(el => {
-        this.updateNodeIntensity(el)
-      })
-    },
-    
-    updateNodeIntensity(node) {
-      const intensity = this.getHeartbeatIntensity()
-      node.style.opacity = 0.6 + intensity * 0.4
-    },
-    
-    getHeartbeatIntensity() {
-      if (this.heartbeatPhase < 0.375) {
-        return 1 - (this.heartbeatPhase / 0.375)
-      } else {
-        return (this.heartbeatPhase - 0.375) / 0.625
-      }
-    },
-    
-    getNodeStyle(index) {
-      const hues = [205, 185, 165, 145, 325, 285, 25, 35, 210, 55, 265, 305, 85, 125, 345, 15];
-      const hue = hues[index % hues.length]
-      const size = 8 + (index % 8)
-      
-      // 心形路径参数
-      const t = (index / 16) * Math.PI * 2
-      const heartX = 16 * Math.sin(t) ** 3
-      const heartY = 13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t)
-      
-      // 随机抖动
-      const frac = n => n - Math.floor(n)
-      const rx = frac(Math.sin(index * 12.9898) * 10000)
-      const ry = frac(Math.cos(index * 78.233) * 10000)
-      const jitterX = (rx - 0.5) * 8
-      const jitterY = (ry - 0.5) * 6
-      
-      const x = 50 + (heartX + jitterX) * 1.2
-      const y = 50 - (heartY + jitterY) * 1.2
-      
-      const delay = (index % 12) * 0.15
-      const dur = 1.9 + (index % 7) * 0.35
-      
-      return {
-        left: x + '%',
-        top: y + '%',
-        width: size + 'px',
-        height: size + 'px',
-        filter: `blur(${Math.max(12, 25 - size)}px)`,
-        background: `radial-gradient(circle, hsla(${hue}, 99%, 72%, .95) 0%, hsla(${hue}, 96%, 58%, .35) 46%, transparent 70%)`,
-        animationDelay: `${delay}s`,
-        '--d': `${dur}s`,
-        '--index': index
-      }
-    },
-    
-    handleClick() {
-      if (this.isTransitioning) return
-      
-      this.isTransitioning = true
-      
-      // 停止心跳动画
-      if (this.animationFrame) {
-        cancelAnimationFrame(this.animationFrame)
-      }
-      
-      // 快速过渡到聊天页面
-      // 延迟后跳转到首页
-      setTimeout(() => {
-        this.$router.push('/home')
-      }, 1500)
-    }
-  },
-  computed: {
-    contrastStyle() {
-      const p = this.heartbeatPhase
-      const brighten = 0.9 + (p < .5 ? (p/.5) : (1 - (p-.5)/.5)) * 0.25
-      const shift = Math.sin(p * Math.PI * 2) * 2
-      return {
-        filter: `brightness(${brighten})`,
-        transform: `translateX(${shift}px)`
-      }
-    }
+<script setup>
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { useRouter } from 'vue-router'
+
+const router = useRouter()
+
+// 响应式数据
+const animationFrame = ref(null)
+const heartbeatPhase = ref(0)
+const isTransitioning = ref(false)
+
+// 计算属性
+const contrastStyle = computed(() => {
+  const p = heartbeatPhase.value
+  const brighten = 0.9 + (p < .5 ? (p/.5) : (1 - (p-.5)/.5)) * 0.25
+  const shift = Math.sin(p * Math.PI * 2) * 2
+  return {
+    filter: `brightness(${brighten})`,
+    transform: `translateX(${shift}px)`
+  }
+})
+
+// 方法
+const startAnimation = () => {
+  const startTime = Date.now()
+  
+  const animate = () => {
+    const elapsed = (Date.now() - startTime) / 1000
+    heartbeatPhase.value = (elapsed % 0.8) / 0.8
+    updateParticles()
+    animationFrame.value = requestAnimationFrame(animate)
+  }
+  animate()
+}
+
+const updateParticles = () => {
+  const elements = document.querySelectorAll('.light-node')
+  elements.forEach(el => {
+    updateNodeIntensity(el)
+  })
+}
+
+const updateNodeIntensity = (node) => {
+  const intensity = getHeartbeatIntensity()
+  node.style.opacity = 0.6 + intensity * 0.4
+}
+
+const getHeartbeatIntensity = () => {
+  if (heartbeatPhase.value < 0.375) {
+    return 1 - (heartbeatPhase.value / 0.375)
+  } else {
+    return (heartbeatPhase.value - 0.375) / 0.625
   }
 }
+
+const getNodeStyle = (index) => {
+  const hues = [205, 185, 165, 145, 325, 285, 25, 35, 210, 55, 265, 305, 85, 125, 345, 15];
+  const hue = hues[index % hues.length]
+  const size = 8 + (index % 8)
+  
+  // 心形路径参数
+  const t = (index / 16) * Math.PI * 2
+  const heartX = 16 * Math.sin(t) ** 3
+  const heartY = 13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t)
+  
+  // 随机抖动
+  const frac = n => n - Math.floor(n)
+  const rx = frac(Math.sin(index * 12.9898) * 10000)
+  const ry = frac(Math.cos(index * 78.233) * 10000)
+  const jitterX = (rx - 0.5) * 8
+  const jitterY = (ry - 0.5) * 6
+  
+  const x = 50 + (heartX + jitterX) * 1.2
+  const y = 50 - (heartY + jitterY) * 1.2
+  
+  const delay = (index % 12) * 0.15
+  const dur = 1.9 + (index % 7) * 0.35
+  
+  return {
+    left: x + '%',
+    top: y + '%',
+    width: size + 'px',
+    height: size + 'px',
+    filter: `blur(${Math.max(12, 25 - size)}px)`,
+    background: `radial-gradient(circle, hsla(${hue}, 99%, 72%, .95) 0%, hsla(${hue}, 96%, 58%, .35) 46%, transparent 70%)`,
+    animationDelay: `${delay}s`,
+    '--d': `${dur}s`,
+    '--index': index
+  }
+}
+
+const handleClick = () => {
+  if (isTransitioning.value) return
+  
+  isTransitioning.value = true
+  
+  // 停止心跳动画
+  if (animationFrame.value) {
+    cancelAnimationFrame(animationFrame.value)
+  }
+  
+  // 快速过渡到聊天页面
+  // 延迟后跳转到首页
+  setTimeout(() => {
+    router.push('/login')
+  }, 500)
+}
+
+// 生命周期
+onMounted(() => {
+  startAnimation()
+})
+
+onBeforeUnmount(() => {
+  if (animationFrame.value) {
+    cancelAnimationFrame(animationFrame.value)
+  }
+})
 </script>
 
 <style lang="scss" scoped>
@@ -200,9 +202,9 @@ export default {
   inset: -10% -10% -10% -10%;
   z-index: 0;
   background:
-    radial-gradient(50% 70% at 30% 45%, rgba(255,100,100,.25) 0%, rgba(255,100,100,.08) 50%, rgba(0,0,0,0) 80%),
-    radial-gradient(55% 75% at 70% 55%, rgba(100,200,255,.20) 0%, rgba(100,200,255,.06) 50%, rgba(0,0,0,0) 80%),
-    radial-gradient(35% 50% at 50% 50%, rgba(255,200,0,.12) 0%, rgba(255,200,0,.04) 60%, rgba(0,0,0,0) 85%);
+    radial-gradient(50% 70% at 30% 45%, rgba(255, 0, 0, 0.3) 0%, rgba(255, 0, 0, 0.1) 50%, rgba(0,0,0,0) 80%),
+    radial-gradient(55% 75% at 70% 55%, rgba(0, 0, 255, 0.1) 0%, rgba(0, 0, 255, 0.05) 50%, rgba(0,0,0,0) 80%),
+    radial-gradient(35% 50% at 50% 50%, rgba(255, 255, 0, 0.2) 0%, rgba(255, 255, 0, 0.05) 60%, rgba(0,0,0,0) 85%);
   filter: blur(32px) saturate(1.05);
 }
 
@@ -272,11 +274,15 @@ export default {
   mix-blend-mode: screen;
   background: conic-gradient(
     from 0deg at 30% 40%, 
-    rgba(255, 100, 100, 0.25), 
-    rgba(100, 200, 255, 0.25), 
-    rgba(255, 200, 0, 0.25), 
-    rgba(255, 100, 100, 0.25), 
-    rgba(100, 200, 255, 0.25)
+    rgba(255, 0, 0, 0.3), 
+    rgba(255, 165, 0, 0.3), 
+    rgba(255, 255, 0, 0.3), 
+    rgba(0, 255, 0, 0.2),
+    rgba(0, 255, 255, 0.2),
+    rgba(0, 0, 255, 0.1),
+    rgba(128, 0, 128, 0.1),
+    rgba(255, 0, 0, 0.4), 
+    rgba(100, 200, 255, 0.4)
   );
   animation: rotateWave 20s linear infinite;
 }
@@ -349,9 +355,9 @@ export default {
 .beam-x { 
   background: linear-gradient(
     90deg, 
-    rgba(255, 100, 100, 0.6), 
-    rgba(255, 200, 0, 0) 45%, 
-    rgba(100, 200, 255, 0.6)
+    rgba(255, 0, 0, 0.3), 
+    rgba(255, 255, 0, 0) 45%, 
+    rgba(0, 0, 255, 0.1)
   );
   animation: beamX 3.6s ease-in-out infinite;
 }
@@ -359,9 +365,9 @@ export default {
 .beam-y { 
   background: linear-gradient(
     0deg, 
-    rgba(255, 200, 0, 0.5), 
-    rgba(255, 100, 100, 0) 45%, 
-    rgba(100, 200, 255, 0.55)
+    rgba(255, 255, 0, 0.305), 
+    rgba(255, 0, 0, 0) 45%, 
+    rgba(0, 0, 255, 0.1)
   );
   animation: beamY 3.2s ease-in-out infinite;
 }
@@ -410,10 +416,10 @@ export default {
 // 长虹玻璃层
 .frosted-layer { 
   z-index: 2;
-  pointer-events: none;
   position: absolute;
   inset: 0;
   transition: all 0.7s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: pointer;
   
   &.transitioning {
     opacity: 0;
@@ -518,6 +524,7 @@ export default {
   justify-content: center;
   text-align: center;
   transition: all 0.7s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: pointer;
   
   &.transitioning {
     transform: scale(1.5);
@@ -528,11 +535,16 @@ export default {
 .brand {
   font-size: clamp(90px, 15vw, 220px);
   font-weight: 800;
-  letter-spacing: 0.2em;
+  letter-spacing: 0.1em;
   margin: 0 0 16px;
   line-height: 1;
-  color: rgba(255, 255, 255, 0.363);
+  background: linear-gradient(135deg, #ffffffe7 0%, #ffffff17 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
   opacity: 0.98;
+  cursor: pointer;
+  z-index: 99;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
@@ -543,6 +555,7 @@ export default {
   text-transform: uppercase;
   font-weight: 300;
   padding-right: 50px;
+  cursor: pointer;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
@@ -553,10 +566,10 @@ export default {
   left: 0;
   width: 100%;
   height: 100%;
-  background: white;
-  z-index: 1000;
+  background: rgb(255, 255, 255);
+  z-index: 88;
   opacity: 0;
-  pointer-events: none;
+  cursor: pointer;
   transition: opacity 0.7s cubic-bezier(0.4, 0, 0.2, 1);
   
   &.active {

@@ -4,10 +4,8 @@
   </div>
 </template>
 
-<script>
-export default {
-  name: 'App'
-}
+<script setup>
+// App.vue 使用 script setup
 </script>
 
 <style>
