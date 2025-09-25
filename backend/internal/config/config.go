@@ -25,13 +25,13 @@ func Load() *Config {
 
 	return &Config{
 		Port:         getEnv("PORT", "8080"),
-		DatabaseURL:  getEnv("DATABASE_URL", "root:password@tcp(localhost:3306)/seven_ai?charset=utf8mb4&parseTime=True&loc=Local"),
+		DatabaseURL:  getEnv("DATABASE_URL", ""),
 		AIAPIKey:     getEnv("AI_API_KEY", ""),
 		AIBaseURL:    getEnv("AI_BASE_URL", ""),
 		ASRAPIKey:    getEnv("ASR_API_KEY", ""),
 		TTSAPIKey:    getEnv("TTS_API_KEY", ""),
 		VisionAPIKey: getEnv("VISION_API_KEY", ""),
-		JWTSecret:    getEnv("JWT_SECRET", "your-secret-key"),
+		JWTSecret:    getEnv("JWT_SECRET", ""),
 		Environment:  getEnv("ENVIRONMENT", "development"),
 	}
 }

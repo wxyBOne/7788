@@ -48,10 +48,9 @@
             <div class="input-group">
               <input
                 v-model="formData.email"
-                type="email"
+                type="text"
                 placeholder="请输入邮箱"
                 class="form-input"
-                required
               />
             </div>
 
@@ -61,7 +60,6 @@
                 :type="showPassword ? 'text' : 'password'"
                 placeholder="请输入密码"
                 class="form-input"
-                required
               />
               <button
                 type="button"
@@ -79,13 +77,13 @@
               </button>
             </div>
 
-            <div class="form-options">
-              <label class="remember-me">
-                <input type="checkbox" v-model="formData.rememberMe">
-                <span>记住我</span>
-              </label>
-              <a href="#" class="forgot-password">忘记密码？</a>
-            </div>
+          <div class="form-options">
+            <label class="remember-me">
+              <input type="checkbox" v-model="formData.rememberMe">
+              <span>记住我</span>
+            </label>
+            <a href="#" class="forgot-password" @click.prevent="openForgotPasswordModal">忘记密码？</a>
+          </div>
 
             <button type="submit" class="login-btn" :disabled="isLoading">
               <span v-if="!isLoading">一键登录</span>
@@ -99,18 +97,26 @@
         </div>
       </div>
     </div>
+
+    <!-- 忘记密码弹窗组件 -->
+    <ForgotPasswordModal 
+      :visible="showForgotPasswordModal" 
+      @close="closeForgotPasswordModal" 
+    />
   </div>
 </template>
 
 <script setup>
 import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
+import ForgotPasswordModal from '@/components/ForgotPasswordModal.vue'
 
 const router = useRouter()
 
 // 响应式数据
 const isLoading = ref(false)
 const showPassword = ref(false)
+const showForgotPasswordModal = ref(false)
 
 // 表单数据
 const formData = reactive({
@@ -118,6 +124,7 @@ const formData = reactive({
   password: '',
   rememberMe: false
 })
+
 
 // 一键登录方法（自动注册或登录）
 const handleQuickLogin = async () => {
@@ -127,16 +134,23 @@ const handleQuickLogin = async () => {
     // 后端会检查用户是否存在，不存在则自动注册
     console.log('一键登录数据:', formData)
     
-    // 模拟API调用
-    await new Promise(resolve => setTimeout(resolve, 1000))
-    
-    // 登录成功后跳转到首页
+    // 直接跳转，移除延迟动画
     router.push('/home')
   } catch (error) {
     console.error('一键登录失败:', error)
   } finally {
     isLoading.value = false
   }
+}
+
+// 打开忘记密码弹窗
+const openForgotPasswordModal = () => {
+  showForgotPasswordModal.value = true
+}
+
+// 关闭忘记密码弹窗
+const closeForgotPasswordModal = () => {
+  showForgotPasswordModal.value = false
 }
 </script>
 
@@ -461,7 +475,7 @@ const handleQuickLogin = async () => {
 
 // 右侧表单区域
 .form-section {
-  flex: 0.4;
+  flex: 0.5;
   height: 100vh;
   display: flex;
   align-items: center;
@@ -490,15 +504,18 @@ const handleQuickLogin = async () => {
   margin-bottom: 32px;
   
   h2 {
-    font-size: 28px;
-    font-weight: 600;
-    color: #1a202c;
+    font-size: 31px;
+    font-weight: 700;
+    background: linear-gradient(135deg, #ff8484ea 0%, #52b4b4 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
     margin: 0 0 8px 0;
   }
   
   p {
-    font-size: 14px;
-    color: #718096;
+    font-size: 15px;
+    color: #a0aec0;
     margin: 0;
   }
 }
@@ -515,13 +532,14 @@ const handleQuickLogin = async () => {
   border: 2px solid rgba(226, 232, 240, 0.8);
   border-radius: 12px;
   font-size: 16px;
+  color: #8a9ba8;
   background: rgba(255, 255, 255, 0.9);
   transition: all 0.3s ease;
   box-sizing: border-box;
   
   &:focus {
     outline: none;
-    border-color: #667eea;
+    border-color: #cacaca;
     box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
     background: rgba(255, 255, 255, 1);
   }
@@ -545,7 +563,7 @@ const handleQuickLogin = async () => {
   transition: color 0.2s ease;
   
   &:hover {
-    color: #667eea;
+    color: #757575;
   }
 }
 
@@ -562,54 +580,120 @@ const handleQuickLogin = async () => {
   align-items: center;
   gap: 8px;
   font-size: 14px;
-  color: #4a5568;
+  color: #7c8794;
   cursor: pointer;
   
   input {
     width: 16px;
     height: 16px;
-    accent-color: #667eea;
+    cursor: pointer;
+    
+    // 移除 accent-color，使用自定义样式
+    appearance: none;
+    -webkit-appearance: none;
+    border: 1px solid #c8ced6;
+    border-radius: 2px;
+    position: relative;
+    
+    &:checked {
+      background-color: #dde4ec; // 选中时的背景色
+      border-color: #a9aeb4;    // 选中时的边框色
+      
+      // 使用伪元素创建白色勾选标记
+      &::after {
+        content: "✓";
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        color: white;
+        font-size: 12px;
+        font-weight: bold;
+      }
+    }
   }
 }
 
 .forgot-password {
   font-size: 14px;
-  color: #4a5568;
+  color: #7c8794;
   text-decoration: none;
   transition: color 0.2s ease;
   
   &:hover {
-    color: #2d3748;
+    color: #494949;
   }
 }
 
 // 按钮
 .login-btn {
-  width: 100%;
-  padding: 16px;
-  border: none;
-  border-radius: 12px;
+  width: 92%;
+  padding: 16px 24px;
+  border: 2px solid rgba(226, 232, 240, 0.8);
+  border-radius: 25px;
   font-size: 16px;
-  font-weight: 600;
+  font-weight: 500;
   cursor: pointer;
   transition: all 0.3s ease;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  margin-bottom: 16px;
-  background: #1a202c;
-  color: white;
+  margin: 0 auto 16px auto;
+  background: linear-gradient(90deg, #ffffff 0%, #ffffff 66%, #e5e7eb 100%);
+  color: #8d99a9;
+  position: relative;
+  
+  // 右侧箭头图标容器
+  &::after {
+    content: '';
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 40px;
+    height: 40px;
+    background: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 0 15px rgba(255, 255, 255, 0.8);
+    z-index: 2;
+  }
+  
+  // 箭头图标 - 使用SVG
+  &::before {
+    content: '';
+    position: absolute;
+    right: 20px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 16px;
+    height: 16px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12h14M12 5l7 7-7 7'/%3E%3C/svg%3E");
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+    z-index: 3;
+  }
   
   &:hover:not(:disabled) {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 20px rgba(26, 32, 44, 0.4);
-    background: #2d3748;
+    background: #ffffff;
+    color: #1f29376d;
+    box-shadow: 0 0 15px rgba(0, 0, 0, 0.082);
+    
+    &::after {
+      box-shadow: 0 0 20px rgba(255, 255, 255, 1);
+    }
   }
   
   &:disabled {
     opacity: 0.7;
     cursor: not-allowed;
+    
+    &::after {
+      opacity: 0.6;
+    }
   }
 }
 
@@ -635,6 +719,7 @@ const handleQuickLogin = async () => {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
 }
+
 
 // 响应式设计
 @media (max-width: 768px) {

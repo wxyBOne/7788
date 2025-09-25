@@ -538,7 +538,7 @@ onBeforeUnmount(() => {
   letter-spacing: 0.1em;
   margin: 0 0 16px;
   line-height: 1;
-  background: linear-gradient(135deg, #ffffffe7 0%, #ffffff17 100%);
+  background: linear-gradient(135deg, #ffffffb9 0%, #ffffff17 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
