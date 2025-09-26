@@ -37,6 +37,7 @@ type ChatResponse struct {
 
 type Choice struct {
 	Message Message `json:"message"`
+	Index   int     `json:"index"`
 }
 
 type Usage struct {
@@ -85,6 +86,9 @@ func NewAIService(apiKey, baseURL, asrAPIKey, ttsAPIKey, visionAPIKey string) *A
 
 // ChatWithLLM 与LLM对话
 func (s *AIService) ChatWithLLM(messages []Message, model string, temperature float64) (string, error) {
+	// 检查消息类型，如果是表情消息，添加表情识别提示
+	messages = s.processEmojiMessages(messages)
+
 	// 暂时返回模拟响应，等API配置完成后替换
 	if s.apiKey == "" {
 		return s.generateMockResponse(messages), nil
@@ -112,18 +116,23 @@ func (s *AIService) ChatWithLLM(messages []Message, model string, temperature fl
 
 	resp, err := s.client.Do(httpReq)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("HTTP request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	// 检查HTTP状态码
+	if resp.StatusCode != 200 {
+		return "", fmt.Errorf("AI API returned status %d: %s", resp.StatusCode, string(respBody))
 	}
 
 	var chatResp ChatResponse
 	if err := json.Unmarshal(respBody, &chatResp); err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to parse response: %w", err)
 	}
 
 	if len(chatResp.Choices) > 0 {
@@ -208,4 +217,53 @@ func containsSubstring(s, substr string) bool {
 		}
 	}
 	return false
+}
+
+// processEmojiMessages 处理表情消息，添加表情识别提示
+func (s *AIService) processEmojiMessages(messages []Message) []Message {
+	for i, msg := range messages {
+		if msg.Role == "user" && s.isEmojiMessage(msg.Content) {
+			// 为用户消息添加表情识别提示
+			messages[i].Content = fmt.Sprintf("用户发送了表情：%s\n请根据这个表情和你的角色性格，自然地回应。可以表达相应的情感或反应。", msg.Content)
+		}
+	}
+	return messages
+}
+
+// isEmojiMessage 检查消息是否只包含表情
+func (s *AIService) isEmojiMessage(content string) bool {
+	// 简单的表情检测：如果消息只包含表情符号（Unicode表情范围）
+	emojiRanges := []struct {
+		start, end rune
+	}{
+		{0x1F600, 0x1F64F}, // Emoticons
+		{0x1F300, 0x1F5FF}, // Misc Symbols and Pictographs
+		{0x1F680, 0x1F6FF}, // Transport and Map
+		{0x1F1E0, 0x1F1FF}, // Regional indicator symbols
+		{0x2600, 0x26FF},   // Misc symbols
+		{0x2700, 0x27BF},   // Dingbats
+		{0xFE00, 0xFE0F},   // Variation Selectors
+		{0x1F900, 0x1F9FF}, // Supplemental Symbols and Pictographs
+		{0x1F018, 0x1F0F5}, // Playing cards
+		{0x1F200, 0x1F2FF}, // Enclosed characters
+	}
+
+	for _, r := range content {
+		isEmoji := false
+		for _, emojiRange := range emojiRanges {
+			if r >= emojiRange.start && r <= emojiRange.end {
+				isEmoji = true
+				break
+			}
+		}
+		if !isEmoji && r != ' ' && r != '\n' && r != '\t' {
+			return false
+		}
+	}
+	return len(content) > 0
+}
+
+// IsEmojiMessage 检查消息是否只包含表情（公开方法）
+func (s *AIService) IsEmojiMessage(content string) bool {
+	return s.isEmojiMessage(content)
 }

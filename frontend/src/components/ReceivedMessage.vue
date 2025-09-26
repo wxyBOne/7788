@@ -1,47 +1,54 @@
 <template>
-    <div class="message received">
-      <div class="message-avatar">
-        <img :src="message.avatar" :alt="message.name" />
-      </div>
-      <div class="message-content">
-        <!-- 文本消息 -->
-        <div v-if="message.type === 'text'" class="message-text">
-          {{ message.content }}
-        </div>
-        
-        <!-- 图片消息 -->
-        <div v-else-if="message.type === 'image'" class="message-image">
-          <img :src="message.imageUrl" :alt="message.content" />
-          <div class="message-text">{{ message.content }}</div>
-        </div>
-        
-        <!-- 音频消息 -->
-        <div v-else-if="message.type === 'audio'" class="message-audio">
-          <div class="audio-waveform">🎵</div>
-          <div class="audio-duration">{{ message.duration }}</div>
-        </div>
-        
-        <!-- 文件消息 -->
-        <div v-else-if="message.type === 'file'" class="message-file">
-          <div class="file-icon">📄</div>
-          <div class="file-info">
-            <div class="file-name">{{ message.fileName }}</div>
-            <div class="file-size">{{ message.fileSize }}</div>
-          </div>
-        </div>
-        
-        <div class="message-time">{{ message.time }}</div>
-      </div>
+  <div class="message received">
+    <div class="message-avatar">
+      <img :src="character?.avatar_url || message.avatar_url || message.avatar" :alt="character?.name || message.name" />
     </div>
-  </template>
+    <div class="message-content">
+      <!-- 文本消息 -->
+      <div v-if="message.message_type === 'text'" class="message-text">
+        {{ message.ai_response || message.content }}
+      </div>
+      
+      <!-- 表情消息 -->
+      <div v-else-if="message.message_type === 'emoji'" class="message-text emoji-message">
+        {{ message.ai_response || message.content }}
+      </div>
+      
+      <!-- 图片消息 -->
+      <div v-else-if="message.message_type === 'image'" class="message-image">
+        <img :src="message.image_url || message.imageUrl" :alt="message.content" />
+        <div class="message-text">{{ message.ai_response || message.content }}</div>
+      </div>
+      
+      <!-- 音频消息 -->
+      <div v-else-if="message.message_type === 'voice'" class="message-audio">
+        <div class="audio-waveform">🎵</div>
+        <div class="audio-duration">{{ message.duration || '00:00' }}</div>
+      </div>
+      
+      <div class="message-time">{{ formatTime(message.created_at) }}</div>
+    </div>
+  </div>
+</template>
   
-  <script setup>
-  defineProps({
-    message: {
-      type: Object,
-      required: true
-    }
-  })
+<script setup>
+import chatService from '@/services/chatService.js'
+
+defineProps({
+  message: {
+    type: Object,
+    required: true
+  },
+  character: {
+    type: Object,
+    default: null
+  }
+})
+
+// 格式化时间
+const formatTime = (timestamp) => {
+  return chatService.formatTime(timestamp)
+}
   </script>
   
   <style lang="scss" scoped>

@@ -24,11 +24,7 @@ func main() {
 		log.Fatal("数据库连接失败:", err)
 	}
 
-	// 初始化服务
-	userService := services.NewUserService(db)
-	characterService := services.NewCharacterService(db)
-	companionService := services.NewCompanionService(db)
-	conversationService := services.NewConversationService(db)
+	// 初始化AI服务
 	aiService := services.NewAIService(
 		cfg.AIAPIKey,
 		cfg.AIBaseURL,
@@ -37,11 +33,19 @@ func main() {
 		cfg.VisionAPIKey,
 	)
 
+	// 初始化服务
+	userService := services.NewUserService(db, aiService)
+	characterService := services.NewCharacterService(db)
+	companionService := services.NewCompanionService(db, aiService)
+	conversationService := services.NewConversationService(db, aiService)
+	friendshipService := services.NewFriendshipService(db, aiService)
+
 	// 初始化处理器
 	userHandler := handlers.NewUserHandler(userService)
 	characterHandler := handlers.NewCharacterHandler(characterService)
-	companionHandler := handlers.NewCompanionHandler(companionService, aiService)
-	conversationHandler := handlers.NewConversationHandler(conversationService, aiService)
+	companionHandler := handlers.NewCompanionHandler(companionService)
+	conversationHandler := handlers.NewConversationHandler(conversationService)
+	friendshipHandler := handlers.NewFriendshipHandler(friendshipService)
 
 	// 设置路由
 	r := gin.Default()
@@ -50,7 +54,7 @@ func main() {
 	r.Use(cors.New(cors.Config{
 		AllowOrigins:     []string{"http://localhost:3000"},
 		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization", "X-User-ID"},
 		ExposeHeaders:    []string{"Content-Length"},
 		AllowCredentials: true,
 	}))
@@ -67,6 +71,8 @@ func main() {
 		{
 			users.POST("/register", userHandler.Register)
 			users.POST("/login", userHandler.Login)
+			users.POST("/send-reset-code", userHandler.SendResetCode)
+			users.POST("/reset-password", userHandler.ResetPassword)
 			users.GET("/profile", middleware.AuthRequired(), userHandler.GetProfile)
 			users.PUT("/profile", middleware.AuthRequired(), userHandler.UpdateProfile)
 		}
@@ -101,6 +107,17 @@ func main() {
 			conversations.POST("/image-chat", conversationHandler.ImageChat)
 			conversations.GET("/history", conversationHandler.GetHistory)
 			conversations.GET("/sessions/:sessionId", conversationHandler.GetSessionHistory)
+		}
+
+		// 好友关系相关
+		friendships := api.Group("/friendships")
+		friendships.Use(middleware.AuthRequired())
+		{
+			friendships.GET("", friendshipHandler.GetUserFriends)
+			friendships.GET("/search", friendshipHandler.SearchAvailableCharacters)
+			friendships.POST("/add", friendshipHandler.AddFriend)
+			friendships.DELETE("/:character_id", friendshipHandler.RemoveFriend)
+			friendships.PUT("/:character_id/read", friendshipHandler.MarkMessagesAsRead)
 		}
 	}
 

@@ -14,15 +14,27 @@
             placeholder="请输入邮箱"
             class="form-input"
           />
-          <button type="button" class="send-code-btn" @click="sendVerificationCode">发送验证码</button>
+          <button 
+            type="button" 
+            class="send-code-btn" 
+            @click="sendVerificationCode"
+            :disabled="isSendingCode"
+          >
+            {{ isSendingCode ? '生成中...' : '获取验证码' }}
+          </button>
         </div>
         
-        <div class="input-group">
+        <!-- 图片验证码显示区域 -->
+        <div v-if="captchaImage" class="captcha-group">
+          <div class="captcha-image-container">
+            <img :src="captchaImage" alt="验证码" class="captcha-image" />
+            <button type="button" class="refresh-captcha-btn" @click="refreshCaptcha">刷新</button>
+          </div>
           <input
             v-model="formData.verificationCode"
             type="text"
             placeholder="请输入验证码"
-            class="form-input"
+            class="form-input captcha-input"
           />
         </div>
         
@@ -46,14 +58,22 @@
       </div>
       
       <div class="modal-footer">
-        <button type="button" class="reset-btn" @click="resetPassword">确认重置</button>
+        <button 
+          type="button" 
+          class="reset-btn" 
+          @click="resetPassword"
+          :disabled="isLoading"
+        >
+          {{ isLoading ? '重置中...' : '确认重置' }}
+        </button>
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { reactive } from 'vue'
+import { reactive, ref } from 'vue'
+import api from '@/services/api.js'
 
 const props = defineProps({
   visible: {
@@ -63,6 +83,12 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['close'])
+
+// 响应式数据
+const isLoading = ref(false)
+const isSendingCode = ref(false)
+const captchaImage = ref('')
+const currentCaptchaCode = ref('')
 
 // 表单数据
 const formData = reactive({
@@ -81,24 +107,62 @@ const closeModal = () => {
     newPassword: '',
     confirmPassword: ''
   })
+  captchaImage.value = ''
+  currentCaptchaCode.value = ''
   emit('close')
 }
 
-// 发送验证码
+// 获取验证码
 const sendVerificationCode = async () => {
   if (!formData.email) {
     alert('请输入邮箱地址')
     return
   }
   
-  try {
-    console.log('发送验证码到:', formData.email)
-    // TODO: 调用发送验证码的API
-    alert('验证码已发送到您的邮箱')
-  } catch (error) {
-    console.error('发送验证码失败:', error)
-    alert('发送验证码失败，请重试')
+  if (!isValidEmail(formData.email)) {
+    alert('请输入有效的邮箱地址')
+    return
   }
+  
+  isSendingCode.value = true
+  
+  try {
+    // 调用生成验证码API
+    const response = await fetch('http://localhost:8080/api/v1/users/send-reset-code', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        email: formData.email
+      })
+    })
+    
+    const result = await response.json()
+    
+    if (response.ok && result.success) {
+      captchaImage.value = result.captcha.image_url
+      currentCaptchaCode.value = result.captcha.code
+      alert('验证码已生成，请输入图片中的验证码')
+    } else {
+      alert(result.error || '生成验证码失败')
+    }
+  } catch (error) {
+    console.error('生成验证码失败:', error)
+    alert('生成验证码失败，请检查网络连接')
+  } finally {
+    isSendingCode.value = false
+  }
+}
+
+// 刷新验证码
+const refreshCaptcha = async () => {
+  if (!formData.email) {
+    alert('请先输入邮箱地址')
+    return
+  }
+  
+  await sendVerificationCode()
 }
 
 // 重置密码
@@ -114,15 +178,53 @@ const resetPassword = async () => {
     return
   }
   
+  if (formData.newPassword.length < 6) {
+    alert('密码长度不能少于6位')
+    return
+  }
+  
+  // 验证图片验证码
+  if (formData.verificationCode.toLowerCase() !== currentCaptchaCode.value.toLowerCase()) {
+    alert('验证码错误，请重新输入')
+    return
+  }
+  
+  isLoading.value = true
+  
   try {
-    console.log('重置密码数据:', formData)
-    // TODO: 调用重置密码的API
-    alert('密码重置成功，请重新登录')
-    closeModal()
+    // 调用重置密码API
+    const response = await fetch('http://localhost:8080/api/v1/users/reset-password', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        email: formData.email,
+        verification_code: formData.verificationCode,
+        new_password: formData.newPassword
+      })
+    })
+    
+    const result = await response.json()
+    
+    if (response.ok && result.success) {
+      alert('密码重置成功，请重新登录')
+      closeModal()
+    } else {
+      alert(result.error || '密码重置失败')
+    }
   } catch (error) {
     console.error('重置密码失败:', error)
-    alert('重置密码失败，请重试')
+    alert('重置密码失败，请检查网络连接')
+  } finally {
+    isLoading.value = false
   }
+}
+
+// 验证邮箱格式
+const isValidEmail = (email) => {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  return emailRegex.test(email)
 }
 </script>
 
@@ -235,6 +337,45 @@ const resetPassword = async () => {
         background: #e5e7eb;
         border-color: #9ca3af;
       }
+    }
+  }
+  
+  .captcha-group {
+    margin-bottom: 20px;
+    
+    .captcha-image-container {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 12px;
+      
+      .captcha-image {
+        width: 120px;
+        height: 40px;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        background: #f9fafb;
+      }
+      
+      .refresh-captcha-btn {
+        padding: 8px 16px;
+        background: #f3f4f6;
+        border: 1px solid #d1d5db;
+        border-radius: 6px;
+        color: #374151;
+        font-size: 12px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        
+        &:hover {
+          background: #e5e7eb;
+          border-color: #9ca3af;
+        }
+      }
+    }
+    
+    .captcha-input {
+      width: 100%;
     }
   }
 }

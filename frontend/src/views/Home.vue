@@ -1,7 +1,7 @@
 <template>
   <div class="chat-page">
     <!-- 左侧导航栏 -->
-    <Sidebar v-show="sidebarVisible" @showBlankAI="showBlankAI = true" @showDiary="showDiary = true" @showSettings="showSettings = true" />
+    <ChatSidebar v-show="sidebarVisible" @showBlankAI="showBlankAI = true" @showDiary="showDiary = true" @showSettings="showSettings = true" />
 
     <!-- 收缩按钮 -->
     <div class="collapse-btn" @click="toggleSidebar">
@@ -202,7 +202,7 @@
 </template>
 
 <script setup>
-import Sidebar from '@/components/Sidebar.vue'
+import ChatSidebar from '@/components/ChatSidebar.vue'
 import { ref } from 'vue'
 
 // 界面控制

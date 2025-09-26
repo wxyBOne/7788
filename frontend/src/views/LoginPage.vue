@@ -110,6 +110,7 @@
 import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import ForgotPasswordModal from '@/components/ForgotPasswordModal.vue'
+import chatService from '@/services/chatService.js'
 
 const router = useRouter()
 
@@ -125,19 +126,27 @@ const formData = reactive({
   rememberMe: false
 })
 
-
 // 一键登录方法（自动注册或登录）
 const handleQuickLogin = async () => {
+  if (!formData.email || !formData.password) {
+    alert('请输入邮箱和密码')
+    return
+  }
+
   isLoading.value = true
   try {
-    // TODO: 调用一键登录API
-    // 后端会检查用户是否存在，不存在则自动注册
-    console.log('一键登录数据:', formData)
+    // 使用chatService的一键登录功能
+    const response = await chatService.quickLogin(formData.email, formData.password)
     
-    // 直接跳转，移除延迟动画
-    router.push('/home')
+    if (response.success) {
+      // 登录成功，跳转到聊天页面
+      router.push('/home')
+    } else {
+      alert('登录失败：' + (response.error || '未知错误'))
+    }
   } catch (error) {
     console.error('一键登录失败:', error)
+    alert('登录失败：' + error.message)
   } finally {
     isLoading.value = false
   }
@@ -536,6 +545,7 @@ const closeForgotPasswordModal = () => {
   background: rgba(255, 255, 255, 0.9);
   transition: all 0.3s ease;
   box-sizing: border-box;
+  cursor: text;
   
   &:focus {
     outline: none;

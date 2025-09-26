@@ -1,46 +1,149 @@
 <template>
   <div class="details-panel">
     <div class="details-header">
-      <h3>聊天</h3>
-      <button class="add-btn">+</button>
+      <h3>{{ isAddFriendMode ? '添加好友' : '消息' }}</h3>
+      <div class="header-actions">
+        <button v-if="isAddFriendMode" class="back-btn" @click="toggleAddFriendMode">←</button>
+        <button v-if="isAddFriendMode" class="delete-btn" @click="toggleAddFriendMode">×</button>
+        <button v-else class="add-btn" @click="toggleAddFriendMode">+</button>
+      </div>
     </div>
     
     <div class="search-bar">
       <div class="search-icon"></div>
-      <input type="text" placeholder="搜索..." />
+      <input 
+        v-model="searchKeyword"
+        type="text" 
+        :placeholder="isAddFriendMode ? '搜索新好友...' : '搜索好友...'"
+        @keyup.enter="handleSearch"
+      />
+      <button v-if="searchKeyword" class="cancel-btn" @click="clearSearch">取消</button>
     </div>
     
     <div class="chat-tabs">
-      <div class="tab active">全部聊天</div>
+      <div class="tab active">{{ isAddFriendMode ? '新好友' : '我的好友' }}</div>
     </div>
     
-    
     <div class="chat-list">
-      <ChatItem 
-        :chatData="currentChat" 
-        :isActive="true"
-        @selectChat="$emit('selectChat', $event)"
-      />
+      <!-- 好友列表 -->
+      <div v-if="!isAddFriendMode">
+        <ChatItem 
+          v-for="friend in filteredFriends"
+          :key="friend.id"
+          :chatData="friend" 
+          :isActive="selectedChatId === friend.id"
+          @selectChat="$emit('selectChat', friend)"
+        />
+      </div>
+      
+      <!-- 可添加的角色列表 -->
+      <div v-else>
+        <div 
+          v-for="character in searchResults"
+          :key="character.id"
+          class="character-item"
+          :class="{ 'added': character.is_added }"
+        >
+          <div class="character-info">
+            <img :src="character.avatar_url" :alt="character.name" class="character-avatar" />
+            <div class="character-details">
+              <div class="character-name">{{ character.name }}</div>
+              <div class="character-description">{{ character.description }}</div>
+            </div>
+          </div>
+          <button 
+            v-if="!character.is_added"
+            class="add-character-btn"
+            @click="addFriend(character.id)"
+            :disabled="isAdding"
+          >
+            {{ isAdding ? '添加中...' : '添加' }}
+          </button>
+          <span v-else class="added-text">已添加</span>
+        </div>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, computed, watch } from 'vue'
 import ChatItem from './ChatItem.vue'
+import chatService from '@/services/chatService.js'
+
+const props = defineProps({
+  selectedChatId: {
+    type: Number,
+    default: null
+  }
+})
 
 defineEmits(['selectChat'])
 
-// 聊天数据
-const currentChat = ref({
-  id: 'hermione',
-  name: '赫敏',
-  avatar: '/src/img/Hermione.webp',
-  lastMessage: 'Okay😊 I know very well about...',
-  time: 'Now',
-  unreadCount: 3,
-  isOnline: true
+// 响应式数据
+const isAddFriendMode = ref(false)
+const searchKeyword = ref('')
+const searchResults = ref([])
+const isAdding = ref(false)
+
+// 计算属性
+const filteredFriends = computed(() => {
+  if (!searchKeyword.value) {
+    return chatService.friends
+  }
+  return chatService.friends.filter(friend => 
+    friend.name.toLowerCase().includes(searchKeyword.value.toLowerCase())
+  )
 })
+
+// 监听搜索关键词变化
+watch(searchKeyword, (newValue) => {
+  if (isAddFriendMode.value && newValue) {
+    handleSearch()
+  }
+})
+
+// 方法
+const toggleAddFriendMode = () => {
+  isAddFriendMode.value = !isAddFriendMode.value
+  if (!isAddFriendMode.value) {
+    searchResults.value = []
+    searchKeyword.value = ''
+  }
+}
+
+const handleSearch = async () => {
+  if (!searchKeyword.value.trim()) return
+  
+  try {
+    await chatService.searchFriends(searchKeyword.value)
+    searchResults.value = chatService.searchResults
+  } catch (error) {
+    console.error('搜索失败:', error)
+  }
+}
+
+const clearSearch = () => {
+  searchKeyword.value = ''
+  searchResults.value = []
+}
+
+const addFriend = async (characterId) => {
+  isAdding.value = true
+  try {
+    await chatService.addFriend(characterId)
+    // 更新搜索结果中的状态
+    const character = searchResults.value.find(c => c.id === characterId)
+    if (character) {
+      character.is_added = true
+    }
+  } catch (error) {
+    console.error('添加好友失败:', error)
+    alert('添加好友失败：' + error.message)
+  } finally {
+    isAdding.value = false
+  }
+}
 </script>
 
 <style lang="scss" scoped>
@@ -68,7 +171,12 @@ const currentChat = ref({
   }
 }
 
-.add-btn {
+.header-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.add-btn, .back-btn, .delete-btn {
   width: 32px;
   height: 32px;
   background: #52b4b4da;
@@ -80,9 +188,26 @@ const currentChat = ref({
   display: flex;
   align-items: center;
   justify-content: center;
+  transition: all 0.2s;
 
   &:hover {
     background: #4da6a6;
+  }
+}
+
+.back-btn {
+  background: #6b7280;
+  
+  &:hover {
+    background: #4b5563;
+  }
+}
+
+.delete-btn {
+  background: #ef4444;
+  
+  &:hover {
+    background: #dc2626;
   }
 }
 
@@ -130,6 +255,26 @@ const currentChat = ref({
       color: #94a3b8;
     }
   }
+  
+  .cancel-btn {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    color: #6b7280;
+    font-size: 12px;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 4px;
+    transition: all 0.2s;
+    
+    &:hover {
+      background: #f3f4f6;
+      color: #374151;
+    }
+  }
 }
 
 
@@ -158,6 +303,80 @@ const currentChat = ref({
   padding: 16px 0;
 }
 
+// 角色列表样式
+.character-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+  border-bottom: 1px solid #f1f5f9;
+  transition: all 0.2s;
+  
+  &:hover {
+    background: #f8fafc;
+  }
+  
+  &.added {
+    opacity: 0.6;
+  }
+}
 
+.character-info {
+  display: flex;
+  align-items: center;
+  flex: 1;
+}
+
+.character-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+  margin-right: 12px;
+}
+
+.character-details {
+  flex: 1;
+}
+
+.character-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: #1e293b;
+  margin-bottom: 2px;
+}
+
+.character-description {
+  font-size: 12px;
+  color: #64748b;
+  line-height: 1.4;
+}
+
+.add-character-btn {
+  padding: 6px 12px;
+  background: #3b82f6;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  
+  &:hover:not(:disabled) {
+    background: #2563eb;
+  }
+  
+  &:disabled {
+    background: #9ca3af;
+    cursor: not-allowed;
+  }
+}
+
+.added-text {
+  font-size: 12px;
+  color: #10b981;
+  font-weight: 500;
+}
 
 </style>

@@ -2,13 +2,11 @@
   <div class="profile-panel">
     <div class="profile-header">
       <div class="profile-avatar">
-        <img :src="selectedChat?.avatar" :alt="selectedChat?.name" />
+        <img :src="selectedChat?.avatar_url || selectedChat?.avatar" :alt="selectedChat?.name" />
       </div>
       <div class="profile-name">{{ selectedChat?.name }}</div>
-      <div class="profile-description">这比魔药课笔记还乱，别看了</div>
+      <div class="profile-description">{{ selectedChat?.personality_signature || '暂无个性签名' }}</div>
     </div>
-    
-    
     
     
     <div class="profile-actions">
@@ -18,12 +16,19 @@
 </template>
 
 <script setup>
+import chatService from '@/services/chatService.js'
+
 defineProps({
   selectedChat: {
     type: Object,
     default: null
   }
 })
+
+// 格式化时间
+const formatTime = (timestamp) => {
+  return chatService.formatTime(timestamp)
+}
 </script>
 
 <style lang="scss" scoped>

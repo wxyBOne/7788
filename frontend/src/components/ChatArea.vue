@@ -4,11 +4,11 @@
       <div class="chat-header">
         <div class="chat-user-info" @click="$emit('toggleProfile')">
           <div class="chat-user-avatar">
-            <img :src="selectedChat.avatar" :alt="selectedChat.name" />
+            <img :src="selectedChat.avatar_url || selectedChat.avatar" :alt="selectedChat.name" />
           </div>
           <div class="chat-user-details">
             <div class="chat-user-name">{{ selectedChat.name }}</div>
-            <div class="chat-user-status">在线</div>
+            <div class="chat-user-status">{{ selectedChat.is_online ? '在线' : '离线' }}</div>
           </div>
         </div>
         <div class="chat-actions">
@@ -17,11 +17,12 @@
         </div>
       </div>
       
-      <div class="messages-container">
+      <div class="messages-container" ref="messagesContainer">
         <template v-for="message in messages" :key="message.id">
           <ReceivedMessage 
-            v-if="message.name !== 'You'" 
+            v-if="message.message_type !== 'user'" 
             :message="message" 
+            :character="selectedChat"
           />
           <SentMessage 
             v-else 
@@ -31,11 +32,16 @@
       </div>
       
       <div class="message-input">
-         <input type="text" placeholder="输入消息..." />
+        <input 
+          v-model="inputMessage"
+          type="text" 
+          placeholder="输入消息..."
+          @keyup.enter="sendMessage"
+        />
         <div class="input-actions">
           <button class="input-btn attach-btn"></button>
-          <button class="input-btn emoji-btn"></button>
-          <button class="send-btn"></button>
+          <button class="input-btn emoji-btn" @click="showEmojiPicker = true"></button>
+          <button class="send-btn" @click="sendMessage" :disabled="!inputMessage.trim()"></button>
         </div>
       </div>
     </div>
@@ -43,18 +49,27 @@
     <div v-else class="no-chat">
       <div class="no-chat-content">
         <div class="no-chat-icon">💬</div>
-         <div class="no-chat-text">选择一个聊天开始对话</div>
+        <div class="no-chat-text">选择一个聊天开始对话</div>
       </div>
     </div>
+
+    <!-- 表情选择器 -->
+    <EmojiPicker 
+      :visible="showEmojiPicker"
+      @close="showEmojiPicker = false"
+      @select="handleEmojiSelect"
+    />
   </div>
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, watch, nextTick } from 'vue'
 import ReceivedMessage from './ReceivedMessage.vue'
 import SentMessage from './SentMessage.vue'
+import EmojiPicker from './EmojiPicker.vue'
+import chatService from '@/services/chatService.js'
 
-defineProps({
+const props = defineProps({
   selectedChat: {
     type: Object,
     default: null
@@ -63,78 +78,60 @@ defineProps({
 
 defineEmits(['toggleProfile'])
 
-// 消息数据
-const messages = ref([
-  {
-    id: 1,
-    type: 'image',
-    avatar: '/src/img/Hermione.webp',
-    name: '赫敏',
-    content: '我觉得这张图片很适合我们的设计。',
-    time: '今天 14:45',
-    imageUrl: 'https://via.placeholder.com/200x120/87CEEB/FFFFFF?text=Mountain'
-  },
-  {
-    id: 2,
-    type: 'audio',
-    avatar: '/src/img/Hermione.webp',
-    name: '赫敏',
-    content: '',
-    time: '今天 14:45',
-    duration: '02:23'
-  },
-  {
-    id: 3,
-    type: 'text',
-    avatar: '/src/img/Hermione.webp',
-    name: '赫敏',
-    content: '你好！很想看看一些设计。😊',
-    time: '今天 14:45'
-  },
-  {
-    id: 4,
-    type: 'text',
-    avatar: '/src/img/Hermione.webp',
-    name: '赫敏',
-    content: '这里有一些图片素材，你有时间的时候可以看看。',
-    time: '15:00'
-  },
-  {
-    id: 5,
-    type: 'file',
-    avatar: '/src/img/Hermione.webp',
-    name: '赫敏',
-    content: '',
-    time: '15:00',
-    fileName: '图片素材.zip',
-    fileSize: '16 MB'
-  },
-  {
-    id: 6,
-    type: 'text',
-    avatar: '/src/img/Hermione.webp',
-    name: 'You',
-    content: '谢谢！！！',
-    time: '15:05'
-  },
-  {
-    id: 7,
-    type: 'audio',
-    avatar: '/src/img/Hermione.webp',
-    name: 'You',
-    content: '',
-    time: '14:50',
-    duration: '02:23'
-  },
-  {
-    id: 8,
-    type: 'text',
-    avatar: '/src/img/Hermione.webp',
-    name: 'You',
-    content: '太棒了 🎉 这是个很好的设计想法。🤩',
-    time: '15:05'
+// 响应式数据
+const inputMessage = ref('')
+const showEmojiPicker = ref(false)
+const messages = ref([])
+const messagesContainer = ref(null)
+
+// 监听选中聊天变化
+watch(() => props.selectedChat, async (newChat) => {
+  if (newChat) {
+    await loadMessages()
   }
-])
+}, { immediate: true })
+
+// 加载消息
+const loadMessages = async () => {
+  if (!props.selectedChat) return
+  
+  try {
+    await chatService.loadMessages(props.selectedChat.id)
+    messages.value = chatService.messages
+    // 滚动到底部
+    await nextTick()
+    scrollToBottom()
+  } catch (error) {
+    console.error('加载消息失败:', error)
+  }
+}
+
+// 发送消息
+const sendMessage = async () => {
+  if (!inputMessage.value.trim() || !props.selectedChat) return
+  
+  try {
+    await chatService.sendMessage(inputMessage.value.trim())
+    inputMessage.value = ''
+    // 重新加载消息
+    await loadMessages()
+  } catch (error) {
+    console.error('发送消息失败:', error)
+  }
+}
+
+// 处理表情选择
+const handleEmojiSelect = (emoji) => {
+  inputMessage.value += emoji.code
+  showEmojiPicker.value = false
+}
+
+// 滚动到底部
+const scrollToBottom = () => {
+  if (messagesContainer.value) {
+    messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
+  }
+}
 </script>
 
 <style lang="scss" scoped>

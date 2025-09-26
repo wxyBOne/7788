@@ -34,24 +34,46 @@
     </div>
   </template>
 <script setup>
-import { ref, reactive } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import ChatSidebar from '@/components/ChatSidebar.vue'
 import ChatDetailsPanel from '@/components/ChatDetailsPanel.vue'
 import ChatArea from '@/components/ChatArea.vue'
 import ChatProfilePanel from '@/components/ChatProfilePanel.vue'
+import chatService from '@/services/chatService.js'
 
 // 响应式数据
 const activeSection = ref('messages')
 const showDetails = ref(false)
 const showProfile = ref(false)
 const selectedChat = ref(null)
+const isLoading = ref(true)
 
-// 聊天数据
-const chats = reactive({
-  'jason': {
-    name: 'Jason Statham',
-    avatar: '/src/img/Hermione.webp',
-    status: 'Active Now'
+// 初始化数据
+onMounted(async () => {
+  try {
+    // 检查用户是否已登录
+    const token = localStorage.getItem('token')
+    if (!token) {
+      // 未登录，跳转到登录页
+      window.location.href = '/login'
+      return
+    }
+
+    // 只有当好友列表为空时才加载，避免重复加载
+    if (chatService.friends.length === 0) {
+      await chatService.loadUserFriends()
+    }
+    
+    // 如果有好友，并且当前没有选中聊天，则默认选择第一个
+    if (chatService.friends.length > 0 && !selectedChat.value) {
+      selectedChat.value = chatService.friends[0]
+      await chatService.switchChat(selectedChat.value)
+    }
+    
+    isLoading.value = false
+  } catch (error) {
+    console.error('初始化失败:', error)
+    isLoading.value = false
   }
 })
 
@@ -72,9 +94,10 @@ const setActiveSection = (section) => {
   }
 }
 
-const selectChat = (chatId) => {
-  selectedChat.value = chats[chatId]
-  showProfile.value = false
+const selectChat = async (chat) => {
+  selectedChat.value = chat
+  await chatService.switchChat(chat)
+  showDetails.value = false
 }
 
 const toggleProfile = () => {
@@ -83,8 +106,6 @@ const toggleProfile = () => {
   }
 }
 
-// 初始化
-selectedChat.value = chats['jason']
 </script>
 
 <style lang="scss" scoped>

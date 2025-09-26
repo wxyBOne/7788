@@ -18,7 +18,7 @@
     
     <div class="user-section">
       <div class="user-avatar">
-        <img src="/src/img/Hermione.webp" alt="User" />
+        <img src="/src/img/DefaultUserAvatar.jpg" alt="User" />
       </div>
     </div>
   </div>

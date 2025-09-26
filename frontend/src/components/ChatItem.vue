@@ -1,21 +1,23 @@
 <template>
-  <div class="chat-item" :class="{ active: isActive }" @click="$emit('selectChat', chatData.id)">
+  <div class="chat-item" :class="{ active: isActive }" @click="$emit('selectChat', chatData)">
     <div class="chat-avatar">
-      <img :src="chatData.avatar" :alt="chatData.name" />
+      <img :src="chatData.avatar_url || chatData.avatar" :alt="chatData.name" />
     </div>
-    <div class="status-dot" v-if="chatData.isOnline"></div>
+    <div class="status-dot" v-if="chatData.is_online"></div>
     <div class="chat-content">
       <div class="chat-name">{{ chatData.name }}</div>
-      <div class="chat-preview">{{ chatData.lastMessage }}</div>
+      <div class="chat-preview">{{ truncateMessage(chatData.last_message) }}</div>
     </div>
     <div class="chat-meta">
-      <div class="chat-time">{{ chatData.time }}</div>
-      <div class="chat-badge" v-if="chatData.unreadCount > 0">{{ chatData.unreadCount }}</div>
+      <div class="chat-time">{{ formatTime(chatData.last_message_at) }}</div>
+      <div class="chat-badge" v-if="chatData.unread_count > 0">{{ chatData.unread_count }}</div>
     </div>
   </div>
 </template>
 
 <script setup>
+import chatService from '@/services/chatService.js'
+
 defineProps({
   chatData: {
     type: Object,
@@ -23,11 +25,11 @@ defineProps({
     default: () => ({
       id: '',
       name: '',
-      avatar: '',
-      lastMessage: '',
-      time: '',
-      unreadCount: 0,
-      isOnline: false
+      avatar_url: '',
+      last_message: '',
+      last_message_at: null,
+      unread_count: 0,
+      is_online: false
     })
   },
   isActive: {
@@ -37,6 +39,15 @@ defineProps({
 })
 
 defineEmits(['selectChat'])
+
+// 工具方法
+const truncateMessage = (message) => {
+  return chatService.truncateMessage(message, 30)
+}
+
+const formatTime = (timestamp) => {
+  return chatService.formatTime(timestamp)
+}
 </script>
 
 <style lang="scss" scoped>
