@@ -3,8 +3,11 @@
     <div class="details-header">
       <h3>{{ isAddFriendMode ? '添加好友' : '消息' }}</h3>
       <div class="header-actions">
-        <button v-if="isAddFriendMode" class="back-btn" @click="toggleAddFriendMode">←</button>
-        <button v-if="isAddFriendMode" class="delete-btn" @click="toggleAddFriendMode">×</button>
+        <button v-if="isAddFriendMode" class="back-btn" @click="toggleAddFriendMode">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M15 18L9 12L15 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
         <button v-else class="add-btn" @click="toggleAddFriendMode">+</button>
       </div>
     </div>
@@ -17,7 +20,6 @@
         :placeholder="isAddFriendMode ? '搜索新好友...' : '搜索好友...'"
         @keyup.enter="handleSearch"
       />
-      <button v-if="searchKeyword" class="cancel-btn" @click="clearSearch">取消</button>
     </div>
     
     <div class="chat-tabs">
@@ -38,6 +40,7 @@
       
       <!-- 可添加的角色列表 -->
       <div v-else>
+        <!-- 有搜索结果时显示角色列表 -->
         <div 
           v-for="character in searchResults"
           :key="character.id"
@@ -55,11 +58,21 @@
             v-if="!character.is_added"
             class="add-character-btn"
             @click="addFriend(character.id)"
-            :disabled="isAdding"
+            :disabled="addingCharacters.has(character.id)"
           >
-            {{ isAdding ? '添加中...' : '添加' }}
+            {{ addingCharacters.has(character.id) ? '添加中...' : '添加' }}
           </button>
           <span v-else class="added-text">已添加</span>
+        </div>
+        
+        <!-- 没有搜索结果时显示提示 -->
+        <div v-if="searchResults.length === 0 && searchKeyword.trim()" class="no-results">
+          <div class="no-results-text">未找到符合的角色</div>
+        </div>
+        
+        <!-- 没有搜索关键词时显示提示 -->
+        <div v-if="searchResults.length === 0 && !searchKeyword.trim()" class="no-results">
+          <div class="no-results-text">请输入搜索关键词</div>
         </div>
       </div>
     </div>
@@ -84,7 +97,7 @@ defineEmits(['selectChat'])
 const isAddFriendMode = ref(false)
 const searchKeyword = ref('')
 const searchResults = ref([])
-const isAdding = ref(false)
+const addingCharacters = ref(new Set()) // 改为Set来跟踪正在添加的角色ID
 
 // 计算属性
 const filteredFriends = computed(() => {
@@ -98,50 +111,60 @@ const filteredFriends = computed(() => {
 
 // 监听搜索关键词变化
 watch(searchKeyword, (newValue) => {
-  if (isAddFriendMode.value && newValue) {
+  if (isAddFriendMode.value) {
     handleSearch()
   }
 })
 
 // 方法
-const toggleAddFriendMode = () => {
+const toggleAddFriendMode = async () => {
   isAddFriendMode.value = !isAddFriendMode.value
   if (!isAddFriendMode.value) {
     searchResults.value = []
     searchKeyword.value = ''
+  } else {
+    // 进入添加好友模式时，加载所有可添加的角色
+    try {
+      await chatService.searchFriends('') // 空字符串获取所有角色
+      searchResults.value = chatService.searchResults
+    } catch (error) {
+      console.error('加载可添加角色失败:', error)
+    }
   }
 }
 
 const handleSearch = async () => {
-  if (!searchKeyword.value.trim()) return
-  
   try {
-    await chatService.searchFriends(searchKeyword.value)
+    const results = await chatService.searchFriends(searchKeyword.value.trim())
     searchResults.value = chatService.searchResults
+    
+    // 如果没有搜索结果，显示提示信息
+    if (results.length === 0 && searchKeyword.value.trim()) {
+      console.log('未找到符合的角色')
+    }
   } catch (error) {
     console.error('搜索失败:', error)
+    // 搜索失败时清空结果
+    searchResults.value = []
   }
 }
 
-const clearSearch = () => {
-  searchKeyword.value = ''
-  searchResults.value = []
-}
 
 const addFriend = async (characterId) => {
-  isAdding.value = true
+  addingCharacters.value.add(characterId) // 添加角色ID到正在添加的集合
   try {
     await chatService.addFriend(characterId)
-    // 更新搜索结果中的状态
-    const character = searchResults.value.find(c => c.id === characterId)
-    if (character) {
-      character.is_added = true
-    }
+    // 刷新好友列表
+    await chatService.loadUserFriends()
+    // 退出添加好友模式，返回好友列表
+    isAddFriendMode.value = false
+    searchResults.value = []
+    searchKeyword.value = ''
   } catch (error) {
     console.error('添加好友失败:', error)
     alert('添加好友失败：' + error.message)
   } finally {
-    isAdding.value = false
+    addingCharacters.value.delete(characterId) // 从正在添加的集合中移除
   }
 }
 </script>
@@ -196,10 +219,23 @@ const addFriend = async (characterId) => {
 }
 
 .back-btn {
-  background: #6b7280;
-  
+  background: transparent;
+  color: #6b7280;
+  cursor: pointer;
+  width: 40px;
+  height: 40px;
+  svg {
+    cursor: pointer;
+    }
   &:hover {
-    background: #4b5563;
+    background: #f8fafc;
+    color: #4b5563;
+    transition: transform 0.2s ease;
+    
+    svg {
+      transform: scale(0.8);
+      transition: transform 0.2s ease;
+    }
   }
 }
 
@@ -243,6 +279,7 @@ const addFriend = async (characterId) => {
     color: #64748b;
     transition: all 0.3s ease;
     box-sizing: border-box;
+    cursor: text;
     
     &:focus {
       outline: none;
@@ -354,7 +391,7 @@ const addFriend = async (characterId) => {
 
 .add-character-btn {
   padding: 6px 12px;
-  background: #3b82f6;
+  background: #52b4b4da;
   color: white;
   border: none;
   border-radius: 6px;
@@ -364,11 +401,11 @@ const addFriend = async (characterId) => {
   transition: all 0.2s;
   
   &:hover:not(:disabled) {
-    background: #2563eb;
+    background: #4da6a6;
   }
   
   &:disabled {
-    background: #9ca3af;
+    background-color: #e2e8f0;
     cursor: not-allowed;
   }
 }
@@ -376,6 +413,20 @@ const addFriend = async (characterId) => {
 .added-text {
   font-size: 12px;
   color: #10b981;
+  font-weight: 500;
+}
+
+.no-results {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 40px 20px;
+  text-align: center;
+}
+
+.no-results-text {
+  color: #6b7280;
+  font-size: 14px;
   font-weight: 500;
 }
 

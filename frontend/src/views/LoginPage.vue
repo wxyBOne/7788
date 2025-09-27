@@ -86,7 +86,7 @@
           </div>
 
             <button type="submit" class="login-btn" :disabled="isLoading">
-              <span v-if="!isLoading">一键登录</span>
+              <span v-if="!isLoading">登录</span>
               <span v-else class="loading-spinner"></span>
             </button>
           </form>
@@ -126,7 +126,7 @@ const formData = reactive({
   rememberMe: false
 })
 
-// 一键登录方法（自动注册或登录）
+// 登录方法（自动注册或登录）
 const handleQuickLogin = async () => {
   if (!formData.email || !formData.password) {
     alert('请输入邮箱和密码')
@@ -135,7 +135,7 @@ const handleQuickLogin = async () => {
 
   isLoading.value = true
   try {
-    // 使用chatService的一键登录功能
+    // 使用chatService的登录功能
     const response = await chatService.quickLogin(formData.email, formData.password)
     
     if (response.success) {
@@ -145,7 +145,7 @@ const handleQuickLogin = async () => {
       alert('登录失败：' + (response.error || '未知错误'))
     }
   } catch (error) {
-    console.error('一键登录失败:', error)
+    console.error('登录失败:', error)
     alert('登录失败：' + error.message)
   } finally {
     isLoading.value = false

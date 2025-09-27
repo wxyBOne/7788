@@ -13,7 +13,15 @@
   cursor: default;
 }
 
-button, .nav-icon, input, select, textarea, a {
+button, .nav-icon, select, a {
+  cursor: pointer;
+}
+
+input, textarea {
+  cursor: text;
+}
+
+input[type="checkbox"], input[type="radio"] {
   cursor: pointer;
 }
 

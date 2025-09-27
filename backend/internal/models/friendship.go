@@ -15,12 +15,12 @@ type UserFriendship struct {
 
 type FriendInfo struct {
 	ID                   int        `json:"id"`
+	CharacterID          int        `json:"character_id"`
 	Name                 string     `json:"name"`
 	AvatarURL            string     `json:"avatar_url"`
 	PersonalitySignature string     `json:"personality_signature"`
 	LastMessage          string     `json:"last_message"`
 	LastMessageAt        *time.Time `json:"last_message_at"`
-	UnreadCount          int        `json:"unread_count"`
 	IsOnline             bool       `json:"is_online"`
 }
 

@@ -1,16 +1,36 @@
 // 聊天状态管理服务
 import api from './api.js';
+import { reactive } from 'vue';
 
 class ChatService {
   constructor() {
     this.currentUser = null;
-    this.friends = [];
+    this.friends = reactive([]);
     this.currentChat = null;
-    this.messages = [];
-    this.searchResults = [];
+    this.messages = reactive([]);
+    this.searchResults = reactive([]);
     this.isSearching = false;
     this.searchKeyword = '';
     this.isAddFriendMode = false;
+    
+    // 初始化时检查localStorage中的登录状态
+    this.initializeFromStorage();
+  }
+
+  // 从localStorage初始化状态
+  initializeFromStorage() {
+    const token = localStorage.getItem('token');
+    const userStr = localStorage.getItem('user');
+    
+    if (token && userStr) {
+      try {
+        this.currentUser = JSON.parse(userStr);
+        console.log('Restored user from localStorage:', this.currentUser);
+      } catch (error) {
+        console.error('Failed to parse user from localStorage:', error);
+        this.logout(); // 清除无效数据
+      }
+    }
   }
 
   // 用户认证
@@ -68,7 +88,7 @@ class ChatService {
     }
   }
 
-  // 一键登录（自动注册）
+  // 登录（自动注册）
   async quickLogin(email, password) {
     try {
       console.log('Starting quickLogin with:', { email, password: '***' });
@@ -102,7 +122,7 @@ class ChatService {
       if (error.message.includes('Failed to fetch')) {
         throw new Error('网络连接失败，请检查后端服务是否启动');
       }
-      throw new Error('快速登录失败：' + error.message);
+      throw new Error('登录失败：' + error.message);
     }
   }
 
@@ -112,7 +132,9 @@ class ChatService {
       const token = localStorage.getItem('token');
       const response = await api.friendship.getUserFriends(token);
       if (response.success) {
-        this.friends = response.data;
+        // 清空数组并添加新数据，保持响应式
+        this.friends.splice(0, this.friends.length, ...response.data);
+        console.log('好友列表已更新为响应式:', this.friends);
         return response.data;
       }
       throw new Error(response.error || '加载好友列表失败');
@@ -126,10 +148,12 @@ class ChatService {
   async searchFriends(keyword) {
     try {
       const token = localStorage.getItem('token');
-      const response = await api.friendship.searchFriends(token, keyword);
+      const response = await api.friendship.searchAvailableCharacters(token, keyword);
       if (response.success) {
-        this.searchResults = response.data;
-        return response.data;
+        // 确保response.data是数组，如果是null或undefined则使用空数组
+        const data = response.data || [];
+        this.searchResults.splice(0, this.searchResults.length, ...data);
+        return data;
       }
       throw new Error(response.error || '搜索失败');
     } catch (error) {
@@ -160,11 +184,37 @@ class ChatService {
     try {
       const token = localStorage.getItem('token');
       const response = await api.conversation.getHistory(token, characterId);
-      if (response.success) {
-        this.messages = response.data;
-        return response.data;
-      }
-      throw new Error(response.error || '加载消息失败');
+      // 直接使用response.data，不依赖success字段
+      const rawMessages = response.data || [];
+      
+      // 将后端返回的对话记录拆分成单独的消息
+      const messages = [];
+      rawMessages.forEach(record => {
+        // 如果有用户消息，添加用户消息
+        if (record.user_message && record.user_message.trim()) {
+          messages.push({
+            id: record.id + '_user',
+            user_message: record.user_message,
+            ai_response: '',
+            message_type: 'user',
+            created_at: record.created_at
+          });
+        }
+        
+        // 如果有AI回复，添加AI回复
+        if (record.ai_response && record.ai_response.trim()) {
+          messages.push({
+            id: record.id + '_ai',
+            user_message: '',
+            ai_response: record.ai_response,
+            message_type: record.message_type || 'text',
+            created_at: record.created_at
+          });
+        }
+      });
+      
+      this.messages.splice(0, this.messages.length, ...messages);
+      return this.messages;
     } catch (error) {
       console.error('Load messages error:', error);
       throw error;
@@ -174,29 +224,40 @@ class ChatService {
   // 发送消息
   async sendMessage(message, characterId) {
     try {
+      console.log('发送消息:', { message, characterId });
       const token = localStorage.getItem('token');
+      console.log('Token:', token);
       const response = await api.conversation.sendMessage(token, {
         character_id: characterId,
         message: message
       });
-      if (response.success) {
-        // 重新加载消息
-        await this.loadMessages(characterId);
-        // 重新加载好友列表（更新最后消息）
+      console.log('API响应:', response);
+      if (response.response) {
+        // 不重新加载消息，让前端处理
+        // 只重新加载好友列表（更新最后消息）
         await this.loadUserFriends();
         return response;
       }
-      throw new Error(response.error || '发送消息失败');
+      throw new Error('API响应格式错误');
     } catch (error) {
       console.error('Send message error:', error);
-      throw error;
+      // 提供更详细的错误信息
+      if (error.message.includes('HTTP 500')) {
+        throw new Error('服务器内部错误，请稍后重试');
+      } else if (error.message.includes('HTTP 401')) {
+        throw new Error('登录已过期，请重新登录');
+      } else if (error.message.includes('HTTP 400')) {
+        throw new Error('请求参数错误');
+      } else {
+        throw new Error(`发送消息失败: ${error.message}`);
+      }
     }
   }
 
   // 切换聊天
   async switchChat(friend) {
     this.currentChat = friend;
-    await this.loadMessages(friend.id);
+    await this.loadMessages(friend.character_id);
   }
 
   // 工具函数
@@ -230,9 +291,9 @@ class ChatService {
   // 登出
   logout() {
     this.currentUser = null;
-    this.friends = [];
+    this.friends.splice(0);
     this.currentChat = null;
-    this.messages = [];
+    this.messages.splice(0);
     localStorage.removeItem('token');
     localStorage.removeItem('user');
   }
@@ -272,6 +333,23 @@ class ChatService {
     
     // 更早的日期
     return date.toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' });
+  }
+
+  // 强制清除登录状态
+  forceLogout() {
+    this.currentUser = null;
+    this.friends.splice(0);
+    this.currentChat = null;
+    this.messages.splice(0);
+    this.searchResults.splice(0);
+    this.isSearching = false;
+    this.searchKeyword = '';
+    this.isAddFriendMode = false;
+    
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    
+    console.log('Force logout completed');
   }
 }
 

@@ -261,10 +261,13 @@ func (s *UserService) generateWelcomeMessage(userID int, characterID int) error 
 		{Role: "system", Content: welcomePrompt},
 	}
 
-	response, err := s.aiService.ChatWithLLM(messages, "qwen3-max", 0.8)
+	response, err := s.aiService.ChatWithLLM(messages, "qwen3-max", 0.8, "text")
 	if err != nil {
+		fmt.Printf("AI call failed for user %d, character %d: %v\n", userID, characterID, err)
 		return fmt.Errorf("failed to generate welcome message: %w", err)
 	}
+
+	fmt.Printf("AI response for user %d, character %d: %s\n", userID, characterID, response)
 
 	// 后处理AI响应，移除角色名字前缀
 	if strings.HasPrefix(response, character.Name+"。") {

@@ -28,9 +28,7 @@ func main() {
 	aiService := services.NewAIService(
 		cfg.AIAPIKey,
 		cfg.AIBaseURL,
-		cfg.ASRAPIKey,
-		cfg.TTSAPIKey,
-		cfg.VisionAPIKey,
+		cfg.AIModel,
 	)
 
 	// 初始化服务
@@ -39,6 +37,7 @@ func main() {
 	companionService := services.NewCompanionService(db, aiService)
 	conversationService := services.NewConversationService(db, aiService)
 	friendshipService := services.NewFriendshipService(db, aiService)
+	voiceCallService := services.NewVoiceCallService(db, aiService)
 
 	// 初始化处理器
 	userHandler := handlers.NewUserHandler(userService)
@@ -46,6 +45,7 @@ func main() {
 	companionHandler := handlers.NewCompanionHandler(companionService)
 	conversationHandler := handlers.NewConversationHandler(conversationService)
 	friendshipHandler := handlers.NewFriendshipHandler(friendshipService)
+	voiceCallHandler := handlers.NewVoiceCallHandler(voiceCallService)
 
 	// 设置路由
 	r := gin.Default()
@@ -117,7 +117,14 @@ func main() {
 			friendships.GET("/search", friendshipHandler.SearchAvailableCharacters)
 			friendships.POST("/add", friendshipHandler.AddFriend)
 			friendships.DELETE("/:character_id", friendshipHandler.RemoveFriend)
-			friendships.PUT("/:character_id/read", friendshipHandler.MarkMessagesAsRead)
+		}
+
+		// 语音通话相关
+		voiceCalls := api.Group("/voice-calls")
+		voiceCalls.Use(middleware.AuthRequired())
+		{
+			voiceCalls.POST("/process", voiceCallHandler.ProcessVoiceCall)
+			voiceCalls.GET("/history", voiceCallHandler.GetVoiceCallHistory)
 		}
 	}
 

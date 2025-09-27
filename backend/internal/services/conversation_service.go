@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"seven-ai-backend/internal/models"
+	"strings"
 	"time"
 )
 
@@ -27,7 +28,7 @@ func (s *ConversationService) Chat(userID int, req models.ChatRequest) (*models.
 	}
 
 	// 获取历史对话
-	history, err := s.getConversationHistory(req.SessionID, 10)
+	history, err := s.getConversationHistory(userID, req.CharacterID, 10)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get conversation history: %w", err)
 	}
@@ -53,10 +54,18 @@ func (s *ConversationService) Chat(userID int, req models.ChatRequest) (*models.
 	messages := s.buildMessageHistoryWithMemory(character, conversationHistory, req.Message, lastMessageTime)
 
 	// 调用AI服务
-	response, err := s.aiService.ChatWithLLM(messages, "qwen3-max", 0.8)
+	response, err := s.aiService.ChatWithLLM(messages, "qwen3-max", 0.8, "text")
 	if err != nil {
 		return nil, fmt.Errorf("failed to get AI response: %w", err)
 	}
+
+	// 后处理AI响应，移除角色名字前缀
+	if strings.HasPrefix(response, character.Name+"。") {
+		response = strings.TrimPrefix(response, character.Name+"。")
+	} else if strings.HasPrefix(response, character.Name) {
+		response = strings.TrimPrefix(response, character.Name)
+	}
+	response = strings.TrimSpace(response) // 移除可能存在的首尾空格
 
 	// 判断消息类型
 	messageType := "text"
@@ -70,10 +79,10 @@ func (s *ConversationService) Chat(userID int, req models.ChatRequest) (*models.
 		return nil, fmt.Errorf("failed to save conversation: %w", err)
 	}
 
-	// 更新好友关系的最后消息时间和未读数量
+	// 更新好友关系的最后消息时间
 	_, err = s.db.Exec(`
 		UPDATE user_friendships 
-		SET last_message_at = NOW(), unread_count = unread_count + 1, updated_at = NOW()
+		SET last_message_at = NOW(), updated_at = NOW()
 		WHERE user_id = ? AND character_id = ?
 	`, userID, req.CharacterID)
 	if err != nil {
@@ -161,6 +170,7 @@ func (s *ConversationService) GetHistory(userID int, characterID int) ([]models.
 
 func (s *ConversationService) getCharacterByID(characterID int) (*models.CharacterResponse, error) {
 	var char models.CharacterResponse
+	var voiceSettings sql.NullString
 	err := s.db.QueryRow(`
 		SELECT id, name, description, avatar_url, personality_signature,
 		       personality_traits, background_story, voice_settings,
@@ -169,23 +179,31 @@ func (s *ConversationService) getCharacterByID(characterID int) (*models.Charact
 	`, characterID).Scan(
 		&char.ID, &char.Name, &char.Description, &char.AvatarURL,
 		&char.PersonalitySignature, &char.PersonalityTraits,
-		&char.BackgroundStory, &char.VoiceSettings,
+		&char.BackgroundStory, &voiceSettings,
 		&char.SystemPrompt, &char.SearchKeywords,
 	)
 	if err != nil {
 		return nil, err
 	}
+
+	// 处理NULL值
+	if voiceSettings.Valid {
+		char.VoiceSettings = voiceSettings.String
+	} else {
+		char.VoiceSettings = ""
+	}
+
 	return &char, nil
 }
 
-func (s *ConversationService) getConversationHistory(sessionID string, limit int) ([]models.ConversationHistory, error) {
+func (s *ConversationService) getConversationHistory(userID int, characterID int, limit int) ([]models.ConversationHistory, error) {
 	rows, err := s.db.Query(`
 		SELECT id, user_message, ai_response, message_type, created_at
 		FROM conversations 
-		WHERE session_id = ?
+		WHERE user_id = ? AND character_id = ?
 		ORDER BY created_at DESC
 		LIMIT ?
-	`, sessionID, limit)
+	`, userID, characterID, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -244,20 +262,32 @@ func (s *ConversationService) buildMessageHistoryWithMemory(character *models.Ch
 	var messages []Message
 
 	// 构建系统提示词，包含角色设定和记忆
-	systemPrompt := character.SystemPrompt
+	systemPrompt := fmt.Sprintf(`你是%s，请严格按照以下角色设定进行对话：
+
+%s
+
+重要提醒：
+1. 你必须始终记住自己是%s，不要混淆其他角色的身份
+2. 保持角色的性格特点和说话风格
+3. 如果用户长时间未聊天，请自然地表达关心
+4. 回复要简洁自然，30字以内
+5. 不要使用任何括号内的动作、表情或场景描写`,
+		character.Name,
+		character.SystemPrompt,
+		character.Name)
 
 	// 如果用户长时间未聊天，添加自然回应提示
 	if lastMessageTime != nil {
 		timeSinceLastMessage := time.Since(*lastMessageTime)
 		if timeSinceLastMessage > 24*time.Hour {
 			systemPrompt += fmt.Sprintf(`
-			
+
 注意：用户已经超过%d天没有和你聊天了。请自然地表达对用户重新出现的反应，可以：
 1. 表达想念或关心
 2. 询问这段时间过得怎么样
-3. 保持角色的性格特点
+3. 保持%s的性格特点
 4. 不要显得生硬或程序化
-5. 自然地继续之前的对话节奏`, int(timeSinceLastMessage.Hours()/24))
+5. 自然地继续之前的对话节奏`, int(timeSinceLastMessage.Hours()/24), character.Name)
 		}
 	}
 

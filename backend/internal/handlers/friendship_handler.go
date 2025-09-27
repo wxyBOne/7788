@@ -48,10 +48,7 @@ func (h *FriendshipHandler) SearchAvailableCharacters(c *gin.Context) {
 	}
 
 	keyword := c.Query("keyword")
-	if keyword == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Keyword is required"})
-		return
-	}
+	// 允许空关键词，显示所有角色
 
 	characters, err := h.friendshipService.SearchAvailableCharacters(userID.(int), keyword)
 	if err != nil {
@@ -115,32 +112,5 @@ func (h *FriendshipHandler) RemoveFriend(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "Friend removed successfully",
-	})
-}
-
-// MarkMessagesAsRead 标记消息为已读
-func (h *FriendshipHandler) MarkMessagesAsRead(c *gin.Context) {
-	userID, exists := c.Get("user_id")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
-		return
-	}
-
-	characterIDStr := c.Param("character_id")
-	characterID, err := strconv.Atoi(characterIDStr)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid character ID"})
-		return
-	}
-
-	err = h.friendshipService.MarkMessagesAsRead(userID.(int), characterID)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "Messages marked as read",
 	})
 }

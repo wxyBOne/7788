@@ -20,10 +20,9 @@
         <div class="message-text">{{ message.ai_response || message.content }}</div>
       </div>
       
-      <!-- 音频消息 -->
-      <div v-else-if="message.message_type === 'voice'" class="message-audio">
-        <div class="audio-waveform">🎵</div>
-        <div class="audio-duration">{{ message.duration || '00:00' }}</div>
+      <!-- 语音消息 - 显示文字内容而不是音频播放按钮 -->
+      <div v-else-if="message.message_type === 'voice'" class="message-text">
+        {{ message.ai_response || message.content }}
       </div>
       
       <div class="message-time">{{ formatTime(message.created_at) }}</div>

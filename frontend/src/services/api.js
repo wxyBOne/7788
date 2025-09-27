@@ -132,17 +132,6 @@ export const friendshipAPI = {
     return response.json();
   },
 
-  // 标记消息为已读
-  markMessagesAsRead: async (token, characterId) => {
-    const response = await fetch(`${API_BASE_URL}/friendships/${characterId}/read`, {
-      method: 'PUT',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'X-User-ID': getUserIdFromToken(token),
-      },
-    });
-    return response.json();
-  },
 };
 
 // 对话相关API
@@ -158,6 +147,12 @@ export const conversationAPI = {
       },
       body: JSON.stringify(messageData),
     });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`HTTP ${response.status}: ${errorText}`);
+    }
+    
     return response.json();
   },
 
@@ -197,6 +192,12 @@ export const conversationAPI = {
         'X-User-ID': getUserIdFromToken(token),
       },
     });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`HTTP ${response.status}: ${errorText}`);
+    }
+    
     return response.json();
   },
 
@@ -235,10 +236,66 @@ function getUserIdFromToken(token) {
   }
 }
 
+// 语音通话相关
+export const voiceCallAPI = {
+  // 处理语音通话
+  processVoiceCall: async (voiceCallData) => {
+    const token = localStorage.getItem('token');
+    const userId = getUserIdFromToken(token);
+    
+    if (!token || !userId) {
+      throw new Error('用户未登录');
+    }
+    
+    const response = await fetch(`${API_BASE_URL}/voice-calls/process`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+        'X-User-ID': userId,
+      },
+      body: JSON.stringify(voiceCallData),
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || '语音通话处理失败');
+    }
+    
+    return response.json();
+  },
+
+  // 获取语音通话历史
+  getVoiceCallHistory: async (characterId) => {
+    const token = localStorage.getItem('token');
+    const userId = localStorage.getItem('userId');
+    
+    if (!token || !userId) {
+      throw new Error('用户未登录');
+    }
+    
+    const response = await fetch(`${API_BASE_URL}/voice-calls/history?character_id=${characterId}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'X-User-ID': userId,
+      },
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || '获取语音通话历史失败');
+    }
+    
+    return response.json();
+  },
+};
+
 // 默认导出所有API
 export default {
   auth: authAPI,
   character: characterAPI,
   friendship: friendshipAPI,
   conversation: conversationAPI,
+  voiceCall: voiceCallAPI,
 };

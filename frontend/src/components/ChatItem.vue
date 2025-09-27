@@ -10,7 +10,6 @@
     </div>
     <div class="chat-meta">
       <div class="chat-time">{{ formatTime(chatData.last_message_at) }}</div>
-      <div class="chat-badge" v-if="chatData.unread_count > 0">{{ chatData.unread_count }}</div>
     </div>
   </div>
 </template>
@@ -28,7 +27,6 @@ defineProps({
       avatar_url: '',
       last_message: '',
       last_message_at: null,
-      unread_count: 0,
       is_online: false
     })
   },
@@ -85,6 +83,7 @@ const formatTime = (timestamp) => {
   border-radius: 50%;
   overflow: hidden;
   margin-right: 12px;
+  cursor: pointer;
   position: relative;
   
   img {
@@ -115,6 +114,7 @@ const formatTime = (timestamp) => {
   font-size: 14px;
   font-weight: 600;
   color: #1e293b;
+  cursor: pointer;
   margin-bottom: 2px;
 }
 
@@ -125,6 +125,7 @@ const formatTime = (timestamp) => {
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 180px;
+  cursor: pointer;
   
   &.typing {
     color: #000000;
@@ -136,23 +137,18 @@ const formatTime = (timestamp) => {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 4px;
+  justify-content: flex-start;
   margin-left: 8px;
+  min-height: 32px;
+  position: relative;
+  cursor: pointer;
 }
 
 .chat-time {
   font-size: 11px;
   color: #94a3b8;
+  margin-bottom: auto;
+  cursor: pointer;
 }
 
-.chat-badge {
-  background: #ef4444;
-  color: white;
-  font-size: 11px;
-  font-weight: 600;
-  padding: 2px 6px;
-  border-radius: 10px;
-  min-width: 18px;
-  text-align: center;
-}
 </style>

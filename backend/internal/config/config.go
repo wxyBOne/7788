@@ -12,6 +12,7 @@ type Config struct {
 	DatabaseURL  string
 	AIAPIKey     string
 	AIBaseURL    string
+	AIModel      string
 	ASRAPIKey    string
 	TTSAPIKey    string
 	VisionAPIKey string
@@ -28,6 +29,7 @@ func Load() *Config {
 		DatabaseURL:  getEnv("DATABASE_URL", ""),
 		AIAPIKey:     getEnv("AI_API_KEY", ""),
 		AIBaseURL:    getEnv("AI_BASE_URL", ""),
+		AIModel:      getEnv("AI_MODEL", "qwen3-max"),
 		ASRAPIKey:    getEnv("ASR_API_KEY", ""),
 		TTSAPIKey:    getEnv("TTS_API_KEY", ""),
 		VisionAPIKey: getEnv("VISION_API_KEY", ""),

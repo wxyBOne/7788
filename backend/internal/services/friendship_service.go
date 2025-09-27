@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"seven-ai-backend/internal/models"
+	"strings"
 	"time"
 )
 
@@ -24,18 +25,18 @@ func (s *FriendshipService) GetUserFriends(userID int) ([]models.FriendInfo, err
 	query := `
 		SELECT 
 			uf.id,
+			uf.character_id,
 			pc.name,
 			pc.avatar_url,
 			pc.personality_signature,
 			COALESCE(
 				CASE 
-					WHEN c.user_message != '' THEN c.user_message
 					WHEN c.ai_response != '' THEN c.ai_response
+					WHEN c.user_message != '' THEN c.user_message
 					ELSE ''
 				END, ''
 			) as last_message,
 			uf.last_message_at,
-			uf.unread_count,
 			true as is_online
 		FROM user_friendships uf
 		JOIN preset_characters pc ON uf.character_id = pc.id
@@ -62,12 +63,12 @@ func (s *FriendshipService) GetUserFriends(userID int) ([]models.FriendInfo, err
 		var friend models.FriendInfo
 		err := rows.Scan(
 			&friend.ID,
+			&friend.CharacterID,
 			&friend.Name,
 			&friend.AvatarURL,
 			&friend.PersonalitySignature,
 			&friend.LastMessage,
 			&friend.LastMessageAt,
-			&friend.UnreadCount,
 			&friend.IsOnline,
 		)
 		if err != nil {
@@ -86,13 +87,13 @@ func (s *FriendshipService) SearchAvailableCharacters(userID int, keyword string
 		SELECT 
 			pc.id,
 			pc.name,
-			pc.description,
+			pc.search_keywords,
 			pc.avatar_url,
-			pc.personality_signature,
-			CASE WHEN uf.id IS NOT NULL THEN true ELSE false END as is_added
+			pc.personality_signature
 		FROM preset_characters pc
 		LEFT JOIN user_friendships uf ON pc.id = uf.character_id AND uf.user_id = ? AND uf.is_active = true
-		WHERE pc.name LIKE ? OR pc.description LIKE ? OR pc.search_keywords LIKE ?
+		WHERE uf.id IS NULL
+		AND (pc.name LIKE ? OR pc.description LIKE ? OR pc.search_keywords LIKE ?)
 		ORDER BY pc.id
 	`
 
@@ -105,21 +106,42 @@ func (s *FriendshipService) SearchAvailableCharacters(userID int, keyword string
 	var characters []models.AvailableCharacter
 	for rows.Next() {
 		var char models.AvailableCharacter
+		var searchKeywords string
 		err := rows.Scan(
 			&char.ID,
 			&char.Name,
-			&char.Description,
+			&searchKeywords,
 			&char.AvatarURL,
 			&char.PersonalitySignature,
-			&char.IsAdded,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan character: %w", err)
 		}
+
+		// 从search_keywords中提取第二段作为描述
+		char.Description = extractSecondKeyword(searchKeywords)
+		char.IsAdded = false // 只返回未添加的角色
+
 		characters = append(characters, char)
 	}
 
 	return characters, nil
+}
+
+// extractSecondKeyword 从search_keywords中提取第二段
+func extractSecondKeyword(searchKeywords string) string {
+	if searchKeywords == "" {
+		return ""
+	}
+
+	// 按逗号分割
+	keywords := strings.Split(searchKeywords, ",")
+	if len(keywords) < 2 {
+		return keywords[0] // 如果只有一段，返回第一段
+	}
+
+	// 返回第二段，去除首尾空格
+	return strings.TrimSpace(keywords[1])
 }
 
 // AddFriend 添加好友
@@ -173,6 +195,7 @@ func (s *FriendshipService) RemoveFriend(userID int, characterID int) error {
 func (s *FriendshipService) generateWelcomeMessage(userID int, characterID int) error {
 	// 获取角色信息
 	var character models.CharacterResponse
+	var voiceSettings sql.NullString
 	err := s.db.QueryRow(`
 		SELECT id, name, description, avatar_url, personality_signature,
 		       personality_traits, background_story, voice_settings,
@@ -181,11 +204,18 @@ func (s *FriendshipService) generateWelcomeMessage(userID int, characterID int) 
 	`, characterID).Scan(
 		&character.ID, &character.Name, &character.Description, &character.AvatarURL,
 		&character.PersonalitySignature, &character.PersonalityTraits,
-		&character.BackgroundStory, &character.VoiceSettings,
+		&character.BackgroundStory, &voiceSettings,
 		&character.SystemPrompt, &character.SearchKeywords,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to get character: %w", err)
+	}
+
+	// 处理NULL值
+	if voiceSettings.Valid {
+		character.VoiceSettings = voiceSettings.String
+	} else {
+		character.VoiceSettings = ""
 	}
 
 	// 构建欢迎消息提示
@@ -206,10 +236,18 @@ func (s *FriendshipService) generateWelcomeMessage(userID int, characterID int) 
 		{Role: "system", Content: welcomePrompt},
 	}
 
-	response, err := s.aiService.ChatWithLLM(messages, "qwen3-max", 0.8)
+	response, err := s.aiService.ChatWithLLM(messages, "qwen3-max", 0.8, "text")
 	if err != nil {
 		return fmt.Errorf("failed to generate welcome message: %w", err)
 	}
+
+	// 后处理AI响应，移除角色名字前缀
+	if strings.HasPrefix(response, character.Name+"。") {
+		response = strings.TrimPrefix(response, character.Name+"。")
+	} else if strings.HasPrefix(response, character.Name) {
+		response = strings.TrimPrefix(response, character.Name)
+	}
+	response = strings.TrimSpace(response) // 移除可能存在的首尾空格
 
 	// 保存欢迎消息到数据库
 	sessionID := fmt.Sprintf("welcome_%d_%d_%d", userID, characterID, time.Now().Unix())
@@ -230,31 +268,6 @@ func (s *FriendshipService) generateWelcomeMessage(userID int, characterID int) 
 	`, userID, characterID)
 	if err != nil {
 		return fmt.Errorf("failed to update friendship: %w", err)
-	}
-
-	return nil
-}
-
-// MarkMessagesAsRead 标记消息为已读
-func (s *FriendshipService) MarkMessagesAsRead(userID int, characterID int) error {
-	// 更新未读数量为0
-	_, err := s.db.Exec(`
-		UPDATE user_friendships 
-		SET unread_count = 0, updated_at = NOW()
-		WHERE user_id = ? AND character_id = ?
-	`, userID, characterID)
-	if err != nil {
-		return fmt.Errorf("failed to mark messages as read: %w", err)
-	}
-
-	// 标记对话记录为已读
-	_, err = s.db.Exec(`
-		UPDATE conversations 
-		SET is_read = true
-		WHERE user_id = ? AND character_id = ? AND is_read = false
-	`, userID, characterID)
-	if err != nil {
-		return fmt.Errorf("failed to mark conversations as read: %w", err)
 	}
 
 	return nil

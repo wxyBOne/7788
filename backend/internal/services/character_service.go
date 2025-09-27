@@ -31,15 +31,24 @@ func (s *CharacterService) GetAllCharacters() ([]models.CharacterResponse, error
 	var characters []models.CharacterResponse
 	for rows.Next() {
 		var char models.CharacterResponse
+		var voiceSettings sql.NullString
 		err := rows.Scan(
 			&char.ID, &char.Name, &char.Description, &char.AvatarURL,
 			&char.PersonalitySignature, &char.PersonalityTraits,
-			&char.BackgroundStory, &char.VoiceSettings,
+			&char.BackgroundStory, &voiceSettings,
 			&char.SystemPrompt, &char.SearchKeywords,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan character: %w", err)
 		}
+
+		// 处理NULL值
+		if voiceSettings.Valid {
+			char.VoiceSettings = voiceSettings.String
+		} else {
+			char.VoiceSettings = ""
+		}
+
 		characters = append(characters, char)
 	}
 
@@ -48,6 +57,7 @@ func (s *CharacterService) GetAllCharacters() ([]models.CharacterResponse, error
 
 func (s *CharacterService) GetCharacterByID(characterID int) (*models.CharacterResponse, error) {
 	var char models.CharacterResponse
+	var voiceSettings sql.NullString
 	err := s.db.QueryRow(`
 		SELECT id, name, description, avatar_url, personality_signature,
 		       personality_traits, background_story, voice_settings,
@@ -56,7 +66,7 @@ func (s *CharacterService) GetCharacterByID(characterID int) (*models.CharacterR
 	`, characterID).Scan(
 		&char.ID, &char.Name, &char.Description, &char.AvatarURL,
 		&char.PersonalitySignature, &char.PersonalityTraits,
-		&char.BackgroundStory, &char.VoiceSettings,
+		&char.BackgroundStory, &voiceSettings,
 		&char.SystemPrompt, &char.SearchKeywords,
 	)
 	if err != nil {
@@ -64,6 +74,13 @@ func (s *CharacterService) GetCharacterByID(characterID int) (*models.CharacterR
 			return nil, fmt.Errorf("character not found")
 		}
 		return nil, fmt.Errorf("failed to query character: %w", err)
+	}
+
+	// 处理NULL值
+	if voiceSettings.Valid {
+		char.VoiceSettings = voiceSettings.String
+	} else {
+		char.VoiceSettings = ""
 	}
 
 	return &char, nil
@@ -87,15 +104,24 @@ func (s *CharacterService) SearchCharacters(keyword string) ([]models.CharacterR
 	var characters []models.CharacterResponse
 	for rows.Next() {
 		var char models.CharacterResponse
+		var voiceSettings sql.NullString
 		err := rows.Scan(
 			&char.ID, &char.Name, &char.Description, &char.AvatarURL,
 			&char.PersonalitySignature, &char.PersonalityTraits,
-			&char.BackgroundStory, &char.VoiceSettings,
+			&char.BackgroundStory, &voiceSettings,
 			&char.SystemPrompt, &char.SearchKeywords,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan character: %w", err)
 		}
+
+		// 处理NULL值
+		if voiceSettings.Valid {
+			char.VoiceSettings = voiceSettings.String
+		} else {
+			char.VoiceSettings = ""
+		}
+
 		characters = append(characters, char)
 	}
 

@@ -67,7 +67,7 @@ defineEmits(['setActiveSection'])
   align-items: center;
   justify-content: center;
   position: relative;
-  z-index: 1000;
+  z-index: 88;
   box-shadow: 0 4px 12px rgba(49, 49, 49, 0.14);
   transition: all 0.3s ease;
   
