@@ -183,6 +183,45 @@ class ChatService {
   async loadMessages(characterId) {
     try {
       const token = localStorage.getItem('token');
+      
+          // 如果是AI伙伴（character_id = 5），需要特殊处理
+          if (characterId === 5) {
+        console.log('加载AI伙伴消息，characterId:', characterId);
+        // 使用现有的conversation API，后端需要支持character_id = 5
+        const response = await api.conversation.getHistory(token, 5);
+        const rawMessages = response.data || [];
+        
+        // 处理消息格式
+        const messages = [];
+        rawMessages.forEach(record => {
+          if (record.user_message && record.user_message.trim()) {
+            const userMessage = {
+              id: record.id + '_user',
+              user_message: record.user_message,
+              ai_response: '',
+              message_type: 'user',
+              created_at: record.created_at
+            };
+            messages.push(userMessage);
+          }
+          
+          if (record.ai_response && record.ai_response.trim()) {
+            const aiMessage = {
+              id: record.id + '_ai',
+              user_message: '',
+              ai_response: record.ai_response,
+              message_type: record.message_type || 'text',
+              created_at: record.created_at
+            };
+            messages.push(aiMessage);
+          }
+        });
+        
+        this.messages.splice(0, this.messages.length, ...messages);
+        return this.messages;
+      }
+      
+      // 普通角色的处理逻辑
       const response = await api.conversation.getHistory(token, characterId);
       // 直接使用response.data，不依赖success字段
       const rawMessages = response.data || [];
@@ -192,24 +231,26 @@ class ChatService {
       rawMessages.forEach(record => {
         // 如果有用户消息，添加用户消息
         if (record.user_message && record.user_message.trim()) {
-          messages.push({
+          const userMessage = {
             id: record.id + '_user',
             user_message: record.user_message,
             ai_response: '',
             message_type: 'user',
             created_at: record.created_at
-          });
+          };
+          messages.push(userMessage);
         }
         
         // 如果有AI回复，添加AI回复
         if (record.ai_response && record.ai_response.trim()) {
-          messages.push({
+          const aiMessage = {
             id: record.id + '_ai',
             user_message: '',
             ai_response: record.ai_response,
             message_type: record.message_type || 'text',
             created_at: record.created_at
-          });
+          };
+          messages.push(aiMessage);
         }
       });
       
@@ -286,6 +327,17 @@ class ChatService {
   // 获取用户头像
   getUserAvatar() {
     return this.currentUser?.avatar_url || '/src/img/DefaultUserAvatar.jpg';
+  }
+
+  // 获取完整的角色信息（包含skills字段）
+  async getFullCharacterData(characterId) {
+    try {
+      const response = await api.character.getCharacter(characterId);
+      return response.character;
+    } catch (error) {
+      console.error('获取完整角色信息失败:', error);
+      throw error;
+    }
   }
 
   // 登出

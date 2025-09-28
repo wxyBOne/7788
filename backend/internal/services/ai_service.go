@@ -1,3 +1,4 @@
+// Package services 提供AI相关的业务逻辑服务
 package services
 
 import (
@@ -12,78 +13,87 @@ import (
 	"time"
 )
 
+// AIService AI服务，处理LLM对话、语音识别和语音合成
 type AIService struct {
-	apiKey  string
-	baseURL string
-	model   string
-	client  *http.Client
+	apiKey  string       // API密钥
+	baseURL string       // API基础URL
+	model   string       // 使用的模型名称
+	client  *http.Client // HTTP客户端
 }
 
+// ChatRequest LLM对话请求结构
 type ChatRequest struct {
-	Model       string    `json:"model"`
-	Messages    []Message `json:"messages"`
-	Temperature float64   `json:"temperature"`
-	MaxTokens   int       `json:"max_tokens"`
+	Model       string    `json:"model"`       // 模型名称
+	Messages    []Message `json:"messages"`    // 消息列表
+	Temperature float64   `json:"temperature"` // 温度参数
+	MaxTokens   int       `json:"max_tokens"`  // 最大token数
 }
 
+// Message 单条消息结构
 type Message struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
+	Role    string `json:"role"`    // 角色：user/assistant/system
+	Content string `json:"content"` // 消息内容
 }
 
+// ChatResponse LLM对话响应结构
 type ChatResponse struct {
-	Choices []Choice `json:"choices"`
-	Usage   Usage    `json:"usage"`
+	Choices []Choice `json:"choices"` // 选择列表
+	Usage   Usage    `json:"usage"`   // 使用统计
 }
 
+// Choice 对话选择结构
 type Choice struct {
-	Message Message `json:"message"`
-	Index   int     `json:"index"`
+	Message Message `json:"message"` // 消息内容
+	Index   int     `json:"index"`   // 索引
 }
 
+// Usage token使用统计
 type Usage struct {
-	PromptTokens     int `json:"prompt_tokens"`
-	CompletionTokens int `json:"completion_tokens"`
-	TotalTokens      int `json:"total_tokens"`
+	PromptTokens     int `json:"prompt_tokens"`     // 提示token数
+	CompletionTokens int `json:"completion_tokens"` // 完成token数
+	TotalTokens      int `json:"total_tokens"`      // 总token数
 }
 
-// ASR相关结构体
+// ASRRequest 语音识别请求结构
 type ASRRequest struct {
-	Model string `json:"model"`
+	Model string `json:"model"` // 模型名称
 	Audio struct {
-		Format string `json:"format"`
-		URL    string `json:"url"`
+		Format string `json:"format"` // 音频格式
+		URL    string `json:"url"`    // 音频URL
 	} `json:"audio"`
+	Language string `json:"language,omitempty"` // 语言参数
 }
 
+// ASRResponse 语音识别响应结构
 type ASRResponse struct {
-	Reqid     string `json:"reqid"`
-	Operation string `json:"operation"`
+	Reqid     string `json:"reqid"`     // 请求ID
+	Operation string `json:"operation"` // 操作类型
 	Data      struct {
 		Result struct {
-			Text string `json:"text"`
+			Text string `json:"text"` // 识别结果文本
 		} `json:"result"`
 	} `json:"data"`
 }
 
-// TTS相关结构体
+// TTSRequest 语音合成请求结构
 type TTSRequest struct {
 	Audio struct {
-		VoiceType  string  `json:"voice_type"`
-		Encoding   string  `json:"encoding"`
-		SpeedRatio float64 `json:"speed_ratio"`
+		VoiceType  string  `json:"voice_type"`  // 音色类型
+		Encoding   string  `json:"encoding"`    // 编码格式
+		SpeedRatio float64 `json:"speed_ratio"` // 语速比例
 	} `json:"audio"`
 	Request struct {
-		Text      string `json:"text"`
-		MaxTokens int    `json:"max_tokens,omitempty"`
+		Text      string `json:"text"`                 // 合成文本
+		MaxTokens int    `json:"max_tokens,omitempty"` // 最大token数
 	} `json:"request"`
 }
 
+// TTSResponse 语音合成响应结构
 type TTSResponse struct {
-	Reqid     string `json:"reqid"`
-	Operation string `json:"operation"`
-	Sequence  int    `json:"sequence"`
-	Data      string `json:"data"` // base64编码的音频数据
+	Reqid     string `json:"reqid"`     // 请求ID
+	Operation string `json:"operation"` // 操作类型
+	Sequence  int    `json:"sequence"`  // 序列号
+	Data      string `json:"data"`      // base64编码的音频数据
 }
 
 type VisionRequest struct {
@@ -104,20 +114,21 @@ type VisionMessage struct {
 	Content string `json:"content"`
 }
 
+// NewAIService 创建AI服务实例
 func NewAIService(apiKey, baseURL, model string) *AIService {
 	return &AIService{
 		apiKey:  apiKey,
 		baseURL: baseURL,
 		model:   model,
 		client: &http.Client{
-			Timeout: 6 * time.Second, // 进一步减少超时时间
+			Timeout: 10 * time.Second, // HTTP客户端超时时间
 		},
 	}
 }
 
-// ChatWithLLM 与LLM对话
+// ChatWithLLM 与LLM进行对话
 func (s *AIService) ChatWithLLM(messages []Message, model string, temperature float64, messageType string) (string, error) {
-	// 检查消息类型，如果是表情消息，添加表情识别提示
+	// 处理表情消息
 	messages = s.processEmojiMessages(messages)
 
 	// 添加消息类型标识
@@ -125,7 +136,7 @@ func (s *AIService) ChatWithLLM(messages []Message, model string, temperature fl
 		// 在系统消息中添加语音通话标识
 		systemMessage := Message{
 			Role:    "system",
-			Content: "这是一次语音通话，请用符合角色的口吻以及语气自然地和用户对话，请口语化而不是书面语。绝不使用任何括号内的动作、表情、语气或场景描写。",
+			Content: "这是一次语音通话，请用符合角色的口吻以及语气自然地和用户对话，请口语化而不是书面语。绝不使用任何括号内的动作、表情、语气或场景描写。请保持回复简洁，控制在60字以内。",
 		}
 		messages = append([]Message{systemMessage}, messages...)
 	}
@@ -145,7 +156,7 @@ func (s *AIService) ChatWithLLM(messages []Message, model string, temperature fl
 		Model:       usedModel,
 		Messages:    messages,
 		Temperature: temperature,
-		MaxTokens:   30, // 进一步减少到30，冲刺5秒内
+		MaxTokens:   40, // 减少到40，让AI生成更简洁的回复，适合语音通话
 	}
 
 	reqBody, err := json.Marshal(req)
@@ -203,7 +214,7 @@ func (s *AIService) SpeechToText(audioData []byte) (string, error) {
 
 	start := time.Now()
 
-	// 上传到公网URL并调用ASR API
+	// 上传音频文件到公网URL
 	publicURL, err := s.uploadToPublicURL(audioData)
 	if err != nil {
 		return "", err
@@ -222,129 +233,174 @@ func (s *AIService) SpeechToText(audioData []byte) (string, error) {
 	return result, nil
 }
 
-// callQiniuASRAPI 调用七牛云ASR API
+// callQiniuASRAPI 调用七牛云ASR API（快速失败策略）
 func (s *AIService) callQiniuASRAPI(audioURL string) (string, error) {
-	// 尝试多种音频格式
-	formats := []string{"mp4", "webm", "wav"}
+	// 只尝试MP3格式，快速失败
+	fmt.Printf("尝试使用 mp3 格式进行ASR识别...\n")
 
-	for _, format := range formats {
-		// 构建ASR请求
-		req := ASRRequest{
-			Model: "asr",
-			Audio: struct {
-				Format string `json:"format"`
-				URL    string `json:"url"`
-			}{
-				Format: format,
-				URL:    audioURL,
-			},
-		}
+	// 构建ASR请求
+	req := ASRRequest{
+		Model: "asr",
+		Audio: struct {
+			Format string `json:"format"`
+			URL    string `json:"url"`
+		}{
+			Format: "mp3",
+			URL:    audioURL,
+		},
+		Language: "zh-CN", // 指定中文语言
+	}
 
-		reqBody, err := json.Marshal(req)
-		if err != nil {
-			continue
-		}
+	reqBody, err := json.Marshal(req)
+	if err != nil {
+		return "", fmt.Errorf("ASR请求构建失败: %v", err)
+	}
 
-		// 尝试主要接入点
-		result, err := s.tryASRRequest(s.baseURL+"/voice/asr", reqBody)
-		if err == nil {
-			return result, nil
-		}
+	// 尝试ASR请求（内部已有重试机制）
+	result, err := s.tryASRRequest(s.baseURL+"/voice/asr", reqBody)
+	if err == nil {
+		fmt.Printf("ASR识别成功: %s\n", result)
+		return result, nil
+	}
 
-		// 如果主要接入点失败，尝试备用接入点
-		fmt.Printf("格式 %s 主要接入点失败，尝试备用接入点: %v\n", format, err)
-		backupURL := "https://api.qnaigc.com/v1/voice/asr"
-		result, err = s.tryASRRequest(backupURL, reqBody)
-		if err == nil {
-			return result, nil
-		}
+	// 如果MP3失败，快速尝试WAV格式
+	fmt.Printf("MP3格式失败，快速尝试WAV格式...\n")
+	req.Audio.Format = "wav"
+	reqBody, err = json.Marshal(req)
+	if err != nil {
+		return "", fmt.Errorf("WAV格式请求构建失败: %v", err)
+	}
 
-		fmt.Printf("格式 %s 也失败了: %v\n", format, err)
+	result, err = s.tryASRRequest(s.baseURL+"/voice/asr", reqBody)
+	if err == nil {
+		fmt.Printf("WAV格式ASR识别成功: %s\n", result)
+		return result, nil
 	}
 
 	return "", fmt.Errorf("所有格式的ASR请求都失败了")
 }
 
-// tryASRRequest 尝试ASR请求
+// tryASRRequest 尝试ASR请求（带重试机制）
 func (s *AIService) tryASRRequest(url string, reqBody []byte) (string, error) {
-	start := time.Now()
+	maxRetries := 2               // 减少到2次重试
+	retryDelay := 1 * time.Second // 减少延迟到1秒
 
-	// 创建带超时的HTTP客户端
-	client := &http.Client{
-		Timeout: 4 * time.Second, // 进一步减少ASR超时时间
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		start := time.Now()
+
+		// 创建带超时的HTTP客户端
+		client := &http.Client{
+			Timeout: 8 * time.Second, // 8秒超时，平衡响应速度和成功率
+		}
+
+		// 发送HTTP请求
+		httpReq, err := http.NewRequest("POST", url, bytes.NewBuffer(reqBody))
+		if err != nil {
+			if attempt == maxRetries {
+				return "", fmt.Errorf("failed to create ASR request: %w", err)
+			}
+			fmt.Printf("ASR请求创建失败 (尝试 %d/%d): %v\n", attempt, maxRetries, err)
+			time.Sleep(retryDelay)
+			continue
+		}
+
+		httpReq.Header.Set("Content-Type", "application/json")
+		httpReq.Header.Set("Authorization", "Bearer "+s.apiKey)
+
+		resp, err := client.Do(httpReq)
+		if err != nil {
+			if attempt == maxRetries {
+				return "", fmt.Errorf("ASR HTTP request failed: %w", err)
+			}
+			fmt.Printf("ASR请求失败 (尝试 %d/%d): %v\n", attempt, maxRetries, err)
+			time.Sleep(retryDelay)
+			continue
+		}
+		defer resp.Body.Close()
+
+		fmt.Printf("ASR请求耗时: %v (URL: %s, 尝试 %d/%d)\n", time.Since(start), url, attempt, maxRetries)
+
+		if resp.StatusCode != 200 {
+			respBody, _ := io.ReadAll(resp.Body)
+			if attempt == maxRetries {
+				return "", fmt.Errorf("ASR API returned status %d: %s", resp.StatusCode, string(respBody))
+			}
+			fmt.Printf("ASR API返回错误状态 %d (尝试 %d/%d): %s\n", resp.StatusCode, attempt, maxRetries, string(respBody))
+			time.Sleep(retryDelay)
+			continue
+		}
+
+		// 解析响应
+		var asrResp ASRResponse
+		respBody, err := io.ReadAll(resp.Body)
+		if err != nil {
+			if attempt == maxRetries {
+				return "", fmt.Errorf("failed to read ASR response: %w", err)
+			}
+			fmt.Printf("ASR响应读取失败 (尝试 %d/%d): %v\n", attempt, maxRetries, err)
+			time.Sleep(retryDelay)
+			continue
+		}
+
+		if err := json.Unmarshal(respBody, &asrResp); err != nil {
+			if attempt == maxRetries {
+				return "", fmt.Errorf("failed to parse ASR response: %w", err)
+			}
+			fmt.Printf("ASR响应解析失败 (尝试 %d/%d): %v\n", attempt, maxRetries, err)
+			time.Sleep(retryDelay)
+			continue
+		}
+
+		// 提取识别文本
+		if asrResp.Data.Result.Text != "" {
+			fmt.Printf("ASR识别成功: %s\n", asrResp.Data.Result.Text)
+			return asrResp.Data.Result.Text, nil
+		}
+
+		// 如果没有文本但请求成功，返回空字符串而不是错误
+		fmt.Printf("ASR识别结果为空，但请求成功\n")
+		return "", nil
 	}
 
-	// 发送HTTP请求
-	httpReq, err := http.NewRequest("POST", url, bytes.NewBuffer(reqBody))
-	if err != nil {
-		return "", fmt.Errorf("failed to create ASR request: %w", err)
-	}
-
-	httpReq.Header.Set("Content-Type", "application/json")
-	httpReq.Header.Set("Authorization", "Bearer "+s.apiKey)
-
-	resp, err := client.Do(httpReq)
-	if err != nil {
-		return "", fmt.Errorf("ASR HTTP request failed: %w", err)
-	}
-	defer resp.Body.Close()
-
-	fmt.Printf("ASR请求耗时: %v (URL: %s)\n", time.Since(start), url)
-
-	if resp.StatusCode != 200 {
-		respBody, _ := io.ReadAll(resp.Body)
-		return "", fmt.Errorf("ASR API returned status %d: %s", resp.StatusCode, string(respBody))
-	}
-
-	// 解析响应
-	var asrResp ASRResponse
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", fmt.Errorf("failed to read ASR response: %w", err)
-	}
-
-	if err := json.Unmarshal(respBody, &asrResp); err != nil {
-		return "", fmt.Errorf("failed to parse ASR response: %w", err)
-	}
-
-	// 提取识别文本
-	if asrResp.Data.Result.Text != "" {
-		return asrResp.Data.Result.Text, nil
-	}
-
-	return "", nil
+	return "", fmt.Errorf("ASR请求在 %d 次尝试后仍然失败", maxRetries)
 }
 
 // uploadToPublicURL 上传音频到公网URL
 func (s *AIService) uploadToPublicURL(audioData []byte) (string, error) {
 	start := time.Now()
+	defer func() {
+		fmt.Printf("上传耗时: %v (文件大小: %d bytes)\n", time.Since(start), len(audioData))
+	}()
+
+	// 检查音频长度，太短的音频可能识别不准确
+	if len(audioData) < 8000 { // 少于0.5秒的音频
+		return "", fmt.Errorf("音频太短 (%d bytes)，可能影响识别准确性", len(audioData))
+	}
 
 	// 如果文件太大，尝试压缩
 	if len(audioData) > 100000 { // 100KB
 		fmt.Printf("文件较大 (%d bytes)，尝试优化上传\n", len(audioData))
 	}
 
+	// 将PCM数据转换为WAV格式
+	wavData, err := s.convertPCMToWAV(audioData)
+	if err != nil {
+		return "", fmt.Errorf("PCM转WAV失败: %w", err)
+	}
+
 	// 创建multipart form data
 	var buf bytes.Buffer
 	writer := multipart.NewWriter(&buf)
 
-	// 添加文件字段 - 动态检测音频格式
-	filename := fmt.Sprintf("audio_%d.webm", time.Now().Unix())
-	if len(audioData) > 4 {
-		// 检测音频格式
-		if audioData[0] == 0x00 && audioData[1] == 0x00 && audioData[2] == 0x00 && audioData[3] == 0x20 {
-			filename = fmt.Sprintf("audio_%d.mp4", time.Now().Unix())
-		} else if audioData[0] == 0x52 && audioData[1] == 0x49 && audioData[2] == 0x46 && audioData[3] == 0x46 {
-			filename = fmt.Sprintf("audio_%d.wav", time.Now().Unix())
-		}
-	}
+	// 添加文件字段 - 使用WAV格式
+	filename := fmt.Sprintf("audio_%d.wav", time.Now().Unix())
 
 	part, err := writer.CreateFormFile("file", filename)
 	if err != nil {
 		return "", fmt.Errorf("failed to create form file: %w", err)
 	}
 
-	_, err = part.Write(audioData)
+	_, err = part.Write(wavData)
 	if err != nil {
 		return "", fmt.Errorf("failed to write file data: %w", err)
 	}
@@ -354,46 +410,97 @@ func (s *AIService) uploadToPublicURL(audioData []byte) (string, error) {
 		return "", fmt.Errorf("failed to close writer: %w", err)
 	}
 
-	// 使用0x0.st文件上传服务
-	req, err := http.NewRequest("POST", "https://0x0.st", &buf)
-	if err != nil {
-		return "", fmt.Errorf("failed to create upload request: %w", err)
+	// 尝试多个上传服务
+	uploadServices := []string{
+		"https://0x0.st",
+		"https://file.io",
 	}
 
-	req.Header.Set("Content-Type", writer.FormDataContentType())
+	var lastErr error
+	for _, serviceURL := range uploadServices {
+		fmt.Printf("尝试上传到: %s\n", serviceURL)
 
-	// 为上传创建专门的客户端，合理超时时间
-	uploadClient := &http.Client{
-		Timeout: 10 * time.Second, // 上传需要一定时间，但不要太长
+		// 重新创建请求（因为body已经被读取）
+		var newBuf bytes.Buffer
+		newWriter := multipart.NewWriter(&newBuf)
+
+		newPart, err := newWriter.CreateFormFile("file", filename)
+		if err != nil {
+			lastErr = fmt.Errorf("failed to create form file: %w", err)
+			continue
+		}
+
+		_, err = newPart.Write(wavData)
+		if err != nil {
+			lastErr = fmt.Errorf("failed to write file data: %w", err)
+			continue
+		}
+
+		err = newWriter.Close()
+		if err != nil {
+			lastErr = fmt.Errorf("failed to close writer: %w", err)
+			continue
+		}
+
+		req, err := http.NewRequest("POST", serviceURL, &newBuf)
+		if err != nil {
+			lastErr = fmt.Errorf("failed to create upload request: %w", err)
+			continue
+		}
+
+		req.Header.Set("Content-Type", newWriter.FormDataContentType())
+
+		// 为上传创建专门的客户端，合理超时时间
+		uploadClient := &http.Client{
+			Timeout: 5 * time.Second, // 减少上传超时时间，提高响应速度
+		}
+
+		resp, err := uploadClient.Do(req)
+		if err != nil {
+			lastErr = fmt.Errorf("upload request failed: %w", err)
+			continue
+		}
+
+		if resp.StatusCode == 200 {
+			// 读取响应
+			respBody, err := io.ReadAll(resp.Body)
+			resp.Body.Close()
+			if err != nil {
+				lastErr = fmt.Errorf("failed to read upload response: %w", err)
+				continue
+			}
+
+			// 处理不同服务的响应格式
+			var publicURL string
+			if serviceURL == "https://file.io" {
+				// file.io返回JSON格式
+				var result struct {
+					Success bool   `json:"success"`
+					Key     string `json:"key"`
+					Link    string `json:"link"`
+				}
+				if err := json.Unmarshal(respBody, &result); err == nil && result.Success {
+					publicURL = result.Link
+				}
+			} else {
+				// 0x0.st返回直接的URL
+				publicURL = strings.TrimSpace(string(respBody))
+			}
+
+			// 验证URL格式
+			if strings.HasPrefix(publicURL, "http") {
+				fmt.Printf("上传成功到: %s, URL: %s\n", serviceURL, publicURL)
+				return publicURL, nil
+			}
+		}
+
+		if resp.Body != nil {
+			resp.Body.Close()
+		}
+		lastErr = fmt.Errorf("upload failed with status %d", resp.StatusCode)
 	}
 
-	resp, err := uploadClient.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("upload request failed: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != 200 {
-		respBody, _ := io.ReadAll(resp.Body)
-		return "", fmt.Errorf("upload failed with status %d: %s", resp.StatusCode, string(respBody))
-	}
-
-	// 读取响应
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", fmt.Errorf("failed to read upload response: %w", err)
-	}
-
-	// 0x0.st返回的是直接的URL
-	publicURL := strings.TrimSpace(string(respBody))
-
-	// 验证URL格式
-	if !strings.HasPrefix(publicURL, "http") {
-		return "", fmt.Errorf("invalid URL returned: %s", publicURL)
-	}
-
-	fmt.Printf("上传耗时: %v (文件大小: %d bytes)\n", time.Since(start), len(audioData))
-	return publicURL, nil
+	return "", fmt.Errorf("所有上传服务都失败，最后错误: %w", lastErr)
 }
 
 // SpeechToTextWithCharacter 带角色人设的语音转文字
@@ -428,17 +535,23 @@ func (s *AIService) getNoiseResponseForCharacter(characterName string) string {
 	}
 }
 
+// GetAPIKey 获取API密钥
+func (s *AIService) GetAPIKey() string {
+	return s.apiKey
+}
+
 // TextToSpeech 文字转语音 (TTS)
 func (s *AIService) TextToSpeech(text string, characterName string) ([]byte, error) {
 	start := time.Now()
 
 	// 限制文本长度，提高TTS速度
-	if len([]rune(text)) > 20 {
-		text = string([]rune(text)[:20]) + "..."
+	if len([]rune(text)) > 100 {
+		text = string([]rune(text)[:100]) + "..."
 	}
 
-	// 根据角色选择音色
+	// 根据角色选择音色和语速
 	voiceType := s.getVoiceTypeForCharacter(characterName)
+	speedRatio := s.getSpeedRatioForCharacter(characterName)
 
 	req := TTSRequest{
 		Audio: struct {
@@ -448,14 +561,14 @@ func (s *AIService) TextToSpeech(text string, characterName string) ([]byte, err
 		}{
 			VoiceType:  voiceType,
 			Encoding:   "mp3",
-			SpeedRatio: 0.9, // 稍微慢一点，更自然
+			SpeedRatio: speedRatio,
 		},
 		Request: struct {
 			Text      string `json:"text"`
 			MaxTokens int    `json:"max_tokens,omitempty"`
 		}{
 			Text:      text,
-			MaxTokens: 60, // 与LLM保持一致，减少TTS处理时间
+			MaxTokens: 0, // 移除MaxTokens限制
 		},
 	}
 
@@ -474,7 +587,7 @@ func (s *AIService) TextToSpeech(text string, characterName string) ([]byte, err
 
 	// 为TTS创建专门的客户端，合理超时时间
 	ttsClient := &http.Client{
-		Timeout: 8 * time.Second, // TTS需要一定时间处理，但不要太长
+		Timeout: 5 * time.Second, // 根据实际性能调整，TTS耗时约3.4秒
 	}
 
 	resp, err := ttsClient.Do(httpReq)
@@ -512,15 +625,31 @@ func (s *AIService) TextToSpeech(text string, characterName string) ([]byte, err
 func (s *AIService) getVoiceTypeForCharacter(characterName string) string {
 	switch characterName {
 	case "林黛玉":
-		return "qiniu_zh_female_tmjxxy" // 甜美教学小源 - 温柔细腻
+		return "qiniu_zh_female_wwxkjx" // 温婉学科讲师 - 温婉细腻，符合林黛玉的气质
 	case "孙悟空":
-		return "qiniu_zh_male_mzjsxg" // 名著角色猴哥 - 豪爽有力
+		return "qiniu_zh_male_mzjsxg" // 名著角色猴哥 - 专门为孙悟空设计的音色
 	case "李白":
-		return "qiniu_zh_male_tyygjs" // 通用阳光讲师 - 豪迈洒脱
-	case "赫敏·格兰杰":
-		return "qiniu_zh_female_zxjxnjs" // 知性教学女教师 - 清晰理性
+		return "qiniu_zh_male_gzjjxb" // 古装剧教学版 - 成熟正式，符合李白的豪迈洒脱
+	case "赫敏·格兰杰", "赫敏":
+		return "qiniu_zh_female_ljfdxx" // 知性教学女教师 - 清晰理性，有条理
 	default:
-		return "qiniu_zh_female_tmjxxy" // 默认甜美教学小源
+		return "qiniu_zh_female_xyqxxj" // 校园清新学姐 - 默认女声
+	}
+}
+
+// getSpeedRatioForCharacter 根据角色名称获取对应的语速
+func (s *AIService) getSpeedRatioForCharacter(characterName string) float64 {
+	switch characterName {
+	case "林黛玉":
+		return 0.9 // 语速稍慢，符合忧郁细腻的特点
+	case "孙悟空":
+		return 1.1 // 语速稍快，符合活泼有力的特点
+	case "李白":
+		return 1.0 // 语速正常，符合豪迈洒脱的特点
+	case "赫敏·格兰杰", "赫敏":
+		return 1.0 // 语速较快，符合清晰理性的特点
+	default:
+		return 1.0 // 默认正常语速
 	}
 }
 
@@ -571,4 +700,65 @@ func (s *AIService) isEmojiMessage(content string) bool {
 // IsEmojiMessage 检查消息是否只包含表情（公开方法）
 func (s *AIService) IsEmojiMessage(content string) bool {
 	return s.isEmojiMessage(content)
+}
+
+// convertPCMToWAV 将PCM数据转换为WAV格式
+func (s *AIService) convertPCMToWAV(pcmData []byte) ([]byte, error) {
+	// WAV文件头结构
+	const (
+		sampleRate    = 16000 // 采样率
+		channels      = 1     // 单声道
+		bitsPerSample = 16    // 16位
+	)
+
+	// 计算数据大小
+	dataSize := len(pcmData)
+	fileSize := 36 + dataSize
+
+	// 创建WAV文件头
+	header := make([]byte, 44)
+
+	// RIFF头
+	copy(header[0:4], "RIFF")
+	header[4] = byte(fileSize)
+	header[5] = byte(fileSize >> 8)
+	header[6] = byte(fileSize >> 16)
+	header[7] = byte(fileSize >> 24)
+	copy(header[8:12], "WAVE")
+
+	// fmt chunk
+	copy(header[12:16], "fmt ")
+	header[16] = 16                   // fmt chunk size
+	copy(header[20:22], []byte{1, 0}) // PCM format
+	header[22] = byte(channels)
+	header[24] = byte(sampleRate & 0xFF)
+	header[25] = byte((sampleRate >> 8) & 0xFF)
+	header[26] = byte((sampleRate >> 16) & 0xFF)
+	header[27] = byte((sampleRate >> 24) & 0xFF)
+
+	byteRate := sampleRate * channels * bitsPerSample / 8
+	header[28] = byte(byteRate & 0xFF)
+	header[29] = byte((byteRate >> 8) & 0xFF)
+	header[30] = byte((byteRate >> 16) & 0xFF)
+	header[31] = byte((byteRate >> 24) & 0xFF)
+
+	blockAlign := channels * bitsPerSample / 8
+	header[32] = byte(blockAlign)
+	header[33] = byte(blockAlign >> 8)
+	header[34] = byte(bitsPerSample)
+	header[35] = byte(bitsPerSample >> 8)
+
+	// data chunk
+	copy(header[36:40], "data")
+	header[40] = byte(dataSize)
+	header[41] = byte(dataSize >> 8)
+	header[42] = byte(dataSize >> 16)
+	header[43] = byte(dataSize >> 24)
+
+	// 合并头部和PCM数据
+	wavData := make([]byte, len(header)+len(pcmData))
+	copy(wavData, header)
+	copy(wavData[len(header):], pcmData)
+
+	return wavData, nil
 }

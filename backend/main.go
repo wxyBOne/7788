@@ -1,3 +1,4 @@
+// Package main Seven AI 后端服务入口
 package main
 
 import (
@@ -14,11 +15,12 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// main 程序入口函数
 func main() {
 	// 加载配置
 	cfg := config.Load()
 
-	// 初始化数据库
+	// 初始化数据库连接
 	db, err := database.InitDB(cfg.DatabaseURL)
 	if err != nil {
 		log.Fatal("数据库连接失败:", err)
@@ -31,26 +33,26 @@ func main() {
 		cfg.AIModel,
 	)
 
-	// 初始化服务
+	// 初始化业务服务
 	userService := services.NewUserService(db, aiService)
 	characterService := services.NewCharacterService(db)
 	companionService := services.NewCompanionService(db, aiService)
 	conversationService := services.NewConversationService(db, aiService)
 	friendshipService := services.NewFriendshipService(db, aiService)
-	voiceCallService := services.NewVoiceCallService(db, aiService)
+	streamingVoiceCallService := services.NewStreamingVoiceCallService(aiService, db)
 
-	// 初始化处理器
+	// 初始化请求处理器
 	userHandler := handlers.NewUserHandler(userService)
 	characterHandler := handlers.NewCharacterHandler(characterService)
 	companionHandler := handlers.NewCompanionHandler(companionService)
 	conversationHandler := handlers.NewConversationHandler(conversationService)
 	friendshipHandler := handlers.NewFriendshipHandler(friendshipService)
-	voiceCallHandler := handlers.NewVoiceCallHandler(voiceCallService)
+	streamingVoiceCallHandler := handlers.NewStreamingVoiceCallHandler(streamingVoiceCallService)
 
 	// 设置路由
 	r := gin.Default()
 
-	// 配置CORS
+	// 配置CORS跨域
 	r.Use(cors.New(cors.Config{
 		AllowOrigins:     []string{"http://localhost:3000"},
 		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
@@ -59,7 +61,7 @@ func main() {
 		AllowCredentials: true,
 	}))
 
-	// 中间件
+	// 添加中间件
 	r.Use(middleware.Logger())
 	r.Use(middleware.Recovery())
 
@@ -93,9 +95,9 @@ func main() {
 			companions.GET("", companionHandler.GetUserCompanions)
 			companions.GET("/:id", companionHandler.GetCompanion)
 			companions.PUT("/:id", companionHandler.UpdateCompanion)
-			companions.DELETE("/:id", companionHandler.DeleteCompanion)
 			companions.GET("/:id/growth", companionHandler.GetGrowthStatus)
 			companions.GET("/:id/diary", companionHandler.GetDiary)
+			companions.GET("/:id/emotion", companionHandler.GetEmotionState)
 		}
 
 		// 对话相关
@@ -119,12 +121,13 @@ func main() {
 			friendships.DELETE("/:character_id", friendshipHandler.RemoveFriend)
 		}
 
-		// 语音通话相关
-		voiceCalls := api.Group("/voice-calls")
-		voiceCalls.Use(middleware.AuthRequired())
+		// 流式语音通话相关
+		streamingVoiceCalls := api.Group("/streaming-voice-calls")
+		// WebSocket连接不需要认证中间件，通过查询参数传递token
 		{
-			voiceCalls.POST("/process", voiceCallHandler.ProcessVoiceCall)
-			voiceCalls.GET("/history", voiceCallHandler.GetVoiceCallHistory)
+			streamingVoiceCalls.GET("/ws", streamingVoiceCallHandler.HandleWebSocket)
+			streamingVoiceCalls.GET("/status/:sessionId", middleware.AuthRequired(), streamingVoiceCallHandler.GetSessionStatus)
+			streamingVoiceCalls.POST("/first-call", streamingVoiceCallHandler.HandleFirstCall)
 		}
 	}
 

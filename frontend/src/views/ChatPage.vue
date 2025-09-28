@@ -3,6 +3,7 @@
       <ChatSidebar 
         :activeSection="activeSection" 
         @setActiveSection="setActiveSection" 
+        :companionEmotion="companionEmotion"
       />
   
       <!-- 使用 v-show 替代 v-if 保持 DOM 存在 -->
@@ -10,6 +11,7 @@
         <ChatDetailsPanel 
           v-show="showDetails" 
           @selectChat="selectChat" 
+          :companionEmotion="companionEmotion"
           class="details-panel"
         />
       </Transition>
@@ -19,6 +21,7 @@
         :selectedChat="selectedChat" 
         @toggleProfile="toggleProfile" 
         @showEmojiPicker="showEmojiPicker = true"
+        @emotionUpdate="handleEmotionUpdate"
         class="chat-area"
         :class="{ 
           'with-details': showDetails, 
@@ -30,6 +33,7 @@
         <ChatProfilePanel 
           v-show="showProfile" 
           :selectedChat="selectedChat" 
+          :companionEmotion="companionEmotion"
           class="profile-panel"
         />
       </Transition>
@@ -59,6 +63,15 @@ const selectedChat = ref(null)
 const isLoading = ref(true)
 const showEmojiPicker = ref(false)
 const chatAreaRef = ref(null)
+
+// AI伙伴情绪状态
+const companionEmotion = ref({
+  emotion: '平静',
+  intensity: 0.5,
+  color: '#52b4b4',
+  brightness: 0.7,
+  particle_speed: 0.5
+})
 
 // 初始化数据
 onMounted(async () => {
@@ -99,7 +112,14 @@ onMounted(async () => {
     
     // 如果有好友，并且当前没有选中聊天，则默认选择第一个
     if (chatService.friends.length > 0 && !selectedChat.value) {
-      selectedChat.value = chatService.friends[0]
+      const firstFriend = chatService.friends[0]
+      try {
+        const fullCharacterData = await chatService.getFullCharacterData(firstFriend.character_id)
+        selectedChat.value = { ...firstFriend, ...fullCharacterData }
+      } catch (error) {
+        console.error('获取默认角色完整信息失败:', error)
+        selectedChat.value = firstFriend
+      }
       await chatService.switchChat(selectedChat.value)
     }
     
@@ -133,7 +153,20 @@ const setActiveSection = (section) => {
 }
 
 const selectChat = async (chat) => {
-  selectedChat.value = chat
+  // 如果是AI伙伴（character_id = 5），直接使用好友列表中的数据
+  if (chat.character_id === 5) {
+    selectedChat.value = chat
+  } else {
+    // 获取完整的角色信息（包含skills字段）
+    try {
+      const fullCharacterData = await chatService.getFullCharacterData(chat.character_id)
+      selectedChat.value = { ...chat, ...fullCharacterData }
+    } catch (error) {
+      console.error('获取完整角色信息失败:', error)
+      selectedChat.value = chat
+    }
+  }
+  
   await chatService.switchChat(chat)
   showDetails.value = false
 }
@@ -150,6 +183,12 @@ const handleEmojiSelect = (emoji) => {
   if (chatAreaRef.value) {
     chatAreaRef.value.handleEmojiSelect(emoji)
   }
+}
+
+// 处理情绪状态更新
+const handleEmotionUpdate = (emotion) => {
+  companionEmotion.value = emotion
+  console.log('ChatPage收到情绪更新:', emotion)
 }
 
 </script>

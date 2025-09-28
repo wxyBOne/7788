@@ -45,7 +45,8 @@ const userAvatar = chatService.getUserAvatar()
 
 // 格式化时间
 const formatTime = (timestamp) => {
-  return chatService.formatTime(timestamp)
+  const result = chatService.formatTime(timestamp);
+  return result;
 }
 </script>
 

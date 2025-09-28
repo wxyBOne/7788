@@ -27,4 +27,5 @@ type CharacterResponse struct {
 	VoiceSettings        string `json:"voice_settings"`
 	SystemPrompt         string `json:"system_prompt"`
 	SearchKeywords       string `json:"search_keywords"`
+	Skills               string `json:"skills"`
 }

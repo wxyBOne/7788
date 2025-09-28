@@ -1,7 +1,19 @@
 <template>
-  <div class="chat-item" :class="{ active: isActive }" @click="$emit('selectChat', chatData)">
+  <div class="chat-item" :class="{ active: isActive }" @click="handleChatClick">
     <div class="chat-avatar">
-      <img :src="chatData.avatar_url || chatData.avatar" :alt="chatData.name" />
+      <!-- AI伙伴使用粒子小球头像 -->
+      <ParticleAvatar
+        v-if="isCompanion"
+        :emotion="companionEmotion.emotion"
+        :intensity="companionEmotion.intensity"
+        :color="companionEmotion.color"
+        :brightness="companionEmotion.brightness"
+        :particle-speed="companionEmotion.particle_speed"
+        :growth-percentage="chatData.growth_percentage || 0"
+        size="small"
+      />
+      <!-- 普通角色使用普通头像 -->
+      <img v-else :src="chatData.avatar_url || chatData.avatar" :alt="chatData.name" />
     </div>
     <div class="status-dot" v-if="chatData.is_online"></div>
     <div class="chat-content">
@@ -10,14 +22,26 @@
     </div>
     <div class="chat-meta">
       <div class="chat-time">{{ formatTime(chatData.last_message_at) }}</div>
+      <!-- AI伙伴成长进度指示器 -->
+      <div v-if="isCompanion && chatData.growth_percentage < 100" class="growth-indicator">
+        <div class="growth-bar">
+          <div 
+            class="growth-fill" 
+            :style="{ width: chatData.growth_percentage + '%' }"
+          ></div>
+        </div>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup>
+import { ref, computed, onMounted } from 'vue'
+import ParticleAvatar from './ParticleAvatar.vue'
 import chatService from '@/services/chatService.js'
+import api from '@/services/api.js'
 
-defineProps({
+const props = defineProps({
   chatData: {
     type: Object,
     required: true,
@@ -33,10 +57,49 @@ defineProps({
   isActive: {
     type: Boolean,
     default: false
+  },
+  companionEmotion: {
+    type: Object,
+    default: () => ({
+      emotion: '平静',
+      intensity: 0.5,
+      color: '#52b4b4',
+      brightness: 0.7,
+      particle_speed: 0.5
+    })
   }
 })
 
-defineEmits(['selectChat'])
+const emit = defineEmits(['selectChat', 'showCompanionInit'])
+
+// 判断是否为AI伙伴
+const isCompanion = computed(() => {
+  return props.chatData.name === '空白AI' || props.chatData.type === 'companion'
+})
+
+// AI伙伴情绪状态
+const companionEmotion = ref({
+  emotion: '平静',
+  intensity: 0.5,
+  color: '#52b4b4',
+  brightness: 0.7,
+  particle_speed: 0.5
+})
+
+// 加载AI伙伴情绪状态
+const loadCompanionEmotion = async () => {
+  if (!isCompanion.value) return
+  
+  try {
+    const token = localStorage.getItem('token')
+    const response = await api.companion.getEmotionState(token, props.chatData.id)
+    if (response.success) {
+      companionEmotion.value = response.emotion
+    }
+  } catch (error) {
+    console.error('加载AI伙伴情绪状态失败:', error)
+  }
+}
 
 // 工具方法
 const truncateMessage = (message) => {
@@ -46,6 +109,30 @@ const truncateMessage = (message) => {
 const formatTime = (timestamp) => {
   return chatService.formatTime(timestamp)
 }
+
+// 处理聊天点击
+const handleChatClick = () => {
+  // 如果是空白AI，检查用户是否已有AI伙伴
+  if (props.chatData.name === '空白AI') {
+    // 检查是否为AI伙伴（有growth_percentage字段说明是已创建的AI伙伴）
+    if (props.chatData.type === 'companion' || props.chatData.growth_percentage !== undefined) {
+      // 用户已有AI伙伴，正常选择聊天
+      emit('selectChat', props.chatData)
+    } else {
+      // 用户还没有AI伙伴，显示初始化弹窗
+      emit('showCompanionInit')
+    }
+  } else {
+    // 普通角色，正常选择聊天
+    emit('selectChat', props.chatData)
+  }
+}
+
+onMounted(() => {
+  if (isCompanion.value) {
+    loadCompanionEmotion()
+  }
+})
 </script>
 
 <style lang="scss" scoped>
@@ -151,4 +238,23 @@ const formatTime = (timestamp) => {
   cursor: pointer;
 }
 
+.growth-indicator {
+  margin-top: 4px;
+  width: 40px;
+}
+
+.growth-bar {
+  width: 100%;
+  height: 3px;
+  background: #e2e8f0;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.growth-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #52b4b4, #059669);
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
 </style>

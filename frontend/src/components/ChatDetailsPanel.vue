@@ -34,6 +34,7 @@
           :key="friend.id"
           :chatData="friend" 
           :isActive="selectedChatId === friend.id"
+          :companionEmotion="companionEmotion"
           @selectChat="$emit('selectChat', friend)"
         />
       </div>
@@ -88,6 +89,16 @@ const props = defineProps({
   selectedChatId: {
     type: Number,
     default: null
+  },
+  companionEmotion: {
+    type: Object,
+    default: () => ({
+      emotion: '平静',
+      intensity: 0.5,
+      color: '#52b4b4',
+      brightness: 0.7,
+      particle_speed: 0.5
+    })
   }
 })
 

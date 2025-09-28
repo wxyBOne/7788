@@ -19,7 +19,7 @@ type Conversation struct {
 }
 
 type ChatRequest struct {
-	CharacterID int    `json:"character_id" binding:"required"`
+	CharacterID int    `json:"character_id" binding:"min=0"` // 允许0值（AI伙伴）
 	Message     string `json:"message" binding:"required"`
 	SessionID   string `json:"session_id"`
 }

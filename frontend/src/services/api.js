@@ -186,10 +186,12 @@ export const conversationAPI = {
 
   // 获取对话历史
   getHistory: async (token, characterId, limit = 50) => {
+    const userId = getUserIdFromToken(token);
+    
     const response = await fetch(`${API_BASE_URL}/conversations/history?character_id=${characterId}&limit=${limit}`, {
       headers: {
         'Authorization': `Bearer ${token}`,
-        'X-User-ID': getUserIdFromToken(token),
+        'X-User-ID': userId,
       },
     });
     
@@ -216,6 +218,11 @@ export const conversationAPI = {
 // 工具函数
 function getUserIdFromToken(token) {
   try {
+    if (!token || typeof token !== 'string') {
+      console.error('Invalid token:', token);
+      return null;
+    }
+    
     // 处理mock token的情况
     if (token === 'mock-jwt-token') {
       // 从localStorage获取用户信息
@@ -236,57 +243,88 @@ function getUserIdFromToken(token) {
   }
 }
 
-// 语音通话相关
-export const voiceCallAPI = {
-  // 处理语音通话
-  processVoiceCall: async (voiceCallData) => {
-    const token = localStorage.getItem('token');
-    const userId = getUserIdFromToken(token);
-    
-    if (!token || !userId) {
-      throw new Error('用户未登录');
-    }
-    
-    const response = await fetch(`${API_BASE_URL}/voice-calls/process`, {
+// AI伙伴相关API
+export const companionAPI = {
+  // 创建AI伙伴
+  createCompanion: async (token, companionData) => {
+    const response = await fetch(`${API_BASE_URL}/companions`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`,
-        'X-User-ID': userId,
+        'X-User-ID': getUserIdFromToken(token),
+        'Content-Type': 'application/json',
       },
-      body: JSON.stringify(voiceCallData),
+      body: JSON.stringify(companionData),
     });
-    
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || '语音通话处理失败');
-    }
-    
     return response.json();
   },
 
-  // 获取语音通话历史
-  getVoiceCallHistory: async (characterId) => {
-    const token = localStorage.getItem('token');
-    const userId = localStorage.getItem('userId');
-    
-    if (!token || !userId) {
-      throw new Error('用户未登录');
-    }
-    
-    const response = await fetch(`${API_BASE_URL}/voice-calls/history?character_id=${characterId}`, {
-      method: 'GET',
+  // 获取用户的AI伙伴列表
+  getUserCompanions: async (token) => {
+    const response = await fetch(`${API_BASE_URL}/companions`, {
       headers: {
         'Authorization': `Bearer ${token}`,
-        'X-User-ID': userId,
+        'X-User-ID': getUserIdFromToken(token),
       },
     });
-    
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || '获取语音通话历史失败');
-    }
-    
+    return response.json();
+  },
+
+  // 获取AI伙伴详情
+  getCompanion: async (token, companionId) => {
+    const response = await fetch(`${API_BASE_URL}/companions/${companionId}`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'X-User-ID': getUserIdFromToken(token),
+      },
+    });
+    return response.json();
+  },
+
+  // 更新AI伙伴信息
+  updateCompanion: async (token, companionId, updateData) => {
+    const response = await fetch(`${API_BASE_URL}/companions/${companionId}`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'X-User-ID': getUserIdFromToken(token),
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(updateData),
+    });
+    return response.json();
+  },
+
+  // 获取AI伙伴成长状态
+  getGrowthStatus: async (token, companionId) => {
+    const response = await fetch(`${API_BASE_URL}/companions/${companionId}/growth`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'X-User-ID': getUserIdFromToken(token),
+      },
+    });
+    return response.json();
+  },
+
+  // 获取AI伙伴日记
+  getDiary: async (token, companionId, limit = 10) => {
+    const response = await fetch(`${API_BASE_URL}/companions/${companionId}/diary?limit=${limit}`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'X-User-ID': getUserIdFromToken(token),
+      },
+    });
+    return response.json();
+  },
+
+  // 获取AI伙伴情绪状态
+  getEmotionState: async (token, companionId) => {
+    const response = await fetch(`${API_BASE_URL}/companions/${companionId}/emotion`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'X-User-ID': getUserIdFromToken(token),
+      },
+    });
     return response.json();
   },
 };
@@ -297,5 +335,5 @@ export default {
   character: characterAPI,
   friendship: friendshipAPI,
   conversation: conversationAPI,
-  voiceCall: voiceCallAPI,
+  companion: companionAPI,
 };

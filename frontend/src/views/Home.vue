@@ -169,7 +169,6 @@
           <!-- 语音通话 -->
           <div class="feature-card" 
                :class="{ visible: hoveredCard === 3 }"
-               @click="showVoiceCall = true"
                @mouseenter="handleMouseEnter(3)"
                @mouseleave="handleMouseLeave">
             <div class="card-icon">
@@ -209,7 +208,6 @@ import { ref } from 'vue'
 const showBlankAI = ref(false)
 const showDiary = ref(false)
 const showSettings = ref(false)
-const showVoiceCall = ref(false)
 const showImageRecognition = ref(false)
 const hoveredCard = ref(-1)
 const sidebarVisible = ref(false)

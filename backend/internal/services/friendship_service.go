@@ -20,8 +20,11 @@ func NewFriendshipService(db *sql.DB, aiService *AIService) *FriendshipService {
 	}
 }
 
-// GetUserFriends 获取用户的好友列表
+// GetUserFriends 获取用户的好友列表（包括AI伙伴）
 func (s *FriendshipService) GetUserFriends(userID int) ([]models.FriendInfo, error) {
+	var friends []models.FriendInfo
+
+	// 获取普通角色好友
 	query := `
 		SELECT 
 			uf.id,
@@ -37,7 +40,8 @@ func (s *FriendshipService) GetUserFriends(userID int) ([]models.FriendInfo, err
 				END, ''
 			) as last_message,
 			uf.last_message_at,
-			true as is_online
+			true as is_online,
+			'character' as type
 		FROM user_friendships uf
 		JOIN preset_characters pc ON uf.character_id = pc.id
 		LEFT JOIN conversations c ON c.user_id = uf.user_id 
@@ -58,7 +62,6 @@ func (s *FriendshipService) GetUserFriends(userID int) ([]models.FriendInfo, err
 	}
 	defer rows.Close()
 
-	var friends []models.FriendInfo
 	for rows.Next() {
 		var friend models.FriendInfo
 		err := rows.Scan(
@@ -70,11 +73,113 @@ func (s *FriendshipService) GetUserFriends(userID int) ([]models.FriendInfo, err
 			&friend.LastMessage,
 			&friend.LastMessageAt,
 			&friend.IsOnline,
+			&friend.Type,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan friend: %w", err)
 		}
 		friends = append(friends, friend)
+	}
+
+	// 获取AI伙伴
+	aiQuery := `
+		SELECT 
+			ac.id,
+			5 as character_id, -- AI伙伴使用5作为特殊character_id
+			ac.name,
+			ac.avatar_url,
+			ac.personality_signature,
+			COALESCE(
+				CASE 
+					WHEN c.ai_response != '' THEN c.ai_response
+					WHEN c.user_message != '' THEN c.user_message
+					ELSE ''
+				END, ''
+			) as last_message,
+			ac.last_active_at as last_message_at,
+			true as is_online,
+			'companion' as type,
+			ac.growth_percentage,
+			ac.current_level,
+			ac.total_experience
+		FROM ai_companions ac
+		LEFT JOIN conversations c ON c.user_id = ac.user_id 
+			AND c.character_id = 5 
+			AND c.created_at = (
+				SELECT MAX(created_at) 
+				FROM conversations c2 
+				WHERE c2.user_id = ac.user_id 
+				AND c2.character_id = 5
+			)
+		WHERE ac.user_id = ?
+		ORDER BY ac.last_active_at DESC
+	`
+
+	aiRows, err := s.db.Query(aiQuery, userID)
+	if err != nil {
+		return nil, fmt.Errorf("查询AI伙伴失败: %v", err)
+	}
+	defer aiRows.Close()
+
+	for aiRows.Next() {
+		var friend models.FriendInfo
+		var growthPercentage sql.NullFloat64
+		var currentLevel sql.NullInt64
+		var totalExperience sql.NullInt64
+
+		err := aiRows.Scan(
+			&friend.ID,
+			&friend.CharacterID,
+			&friend.Name,
+			&friend.AvatarURL,
+			&friend.PersonalitySignature,
+			&friend.LastMessage,
+			&friend.LastMessageAt,
+			&friend.IsOnline,
+			&friend.Type,
+			&growthPercentage,
+			&currentLevel,
+			&totalExperience,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("扫描AI伙伴数据失败: %v", err)
+		}
+
+		// 设置AI伙伴特有的字段
+		if growthPercentage.Valid {
+			friend.GrowthPercentage = growthPercentage.Float64
+		}
+		if currentLevel.Valid {
+			friend.CurrentLevel = int(currentLevel.Int64)
+		}
+		if totalExperience.Valid {
+			friend.TotalExperience = int(totalExperience.Int64)
+		}
+
+		friends = append(friends, friend)
+	}
+
+	// 添加空白AI到好友列表（如果用户还没有AI伙伴）
+	var hasCompanion bool
+	err = s.db.QueryRow("SELECT COUNT(*) > 0 FROM ai_companions WHERE user_id = ?", userID).Scan(&hasCompanion)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check companion: %w", err)
+	}
+
+	if !hasCompanion {
+		// 用户还没有AI伙伴，添加空白AI到好友列表
+		blankAI := models.FriendInfo{
+			ID:                   0,
+			CharacterID:          5,
+			Name:                 "空白AI",
+			AvatarURL:            "",
+			PersonalitySignature: "我...我是谁？你...你是谁？",
+			LastMessage:          "点击创建你的专属AI伙伴",
+			LastMessageAt:        &time.Time{},
+			IsOnline:             true,
+			Type:                 "blank", // 特殊类型标识
+		}
+		friends = append(friends, blankAI)
 	}
 
 	return friends, nil

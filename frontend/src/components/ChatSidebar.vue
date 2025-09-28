@@ -16,23 +16,132 @@
       </div>
     </nav>
     
-    <div class="user-section">
+    <div class="user-section" @click="toggleUserCard">
       <div class="user-avatar">
-        <img src="/src/img/DefaultUserAvatar.jpg" alt="User" />
+        <img :src="userAvatar" :alt="userName" />
+      </div>
+    </div>
+
+    <!-- AI伙伴初始化弹窗 -->
+    <CompanionInitModal 
+      :show="showCompanionInit" 
+      @close="showCompanionInit = false"
+      @created="onCompanionCreated"
+    />
+
+    <!-- 用户信息卡片弹窗 -->
+    <div v-if="showUserCard" class="user-card-overlay" @click="closeUserCard">
+      <div class="user-card" @click.stop>
+        <div class="user-card-header">
+          <div class="user-card-avatar">
+            <img :src="userAvatar" :alt="userName" />
+          </div>
+          <div class="user-card-info">
+            <h3 class="user-name">{{ userName }}</h3>
+            <p class="user-email">{{ userEmail }}</p>
+          </div>
+        </div>
+        <div class="user-card-actions">
+          <button class="switch-account-btn" @click="switchAccount">
+            <svg class="switch-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+              <circle cx="8.5" cy="7" r="4"/>
+              <line x1="20" y1="8" x2="20" y2="14"/>
+              <line x1="23" y1="11" x2="17" y2="11"/>
+            </svg>
+            切换账号
+          </button>
+        </div>
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
+import { ref, computed, onMounted } from 'vue'
+import chatService from '@/services/chatService.js'
+import CompanionInitModal from './CompanionInitModal.vue'
+
 defineProps({
   activeSection: {
     type: String,
     default: 'messages'
+  },
+  companionEmotion: {
+    type: Object,
+    default: () => ({
+      emotion: '平静',
+      intensity: 0.5,
+      color: '#52b4b4',
+      brightness: 0.7,
+      particle_speed: 0.5
+    })
   }
 })
 
 defineEmits(['setActiveSection'])
+
+// 弹窗控制
+const showUserCard = ref(false)
+const showCompanionInit = ref(false)
+
+// 用户信息
+const userAvatar = computed(() => {
+  return chatService.currentUser?.avatar_url || '/src/img/DefaultUserAvatar.jpg'
+})
+
+const userName = computed(() => {
+  return chatService.currentUser?.name || chatService.currentUser?.username || '用户'
+})
+
+const userEmail = computed(() => {
+  return chatService.currentUser?.email || 'user@example.com'
+})
+
+// 切换用户卡片显示
+const toggleUserCard = () => {
+  showUserCard.value = !showUserCard.value
+}
+
+// 关闭用户卡片
+const closeUserCard = () => {
+  showUserCard.value = false
+}
+
+// 处理AI伙伴创建
+const onCompanionCreated = async (companion) => {
+  console.log('AI伙伴创建成功:', companion)
+  // 刷新好友列表
+  await chatService.loadUserFriends()
+  // 可以选择直接进入AI伙伴的聊天
+  // emit('setActiveSection', 'messages')
+}
+
+// 切换账号
+const switchAccount = () => {
+  // 清除本地存储的登录信息
+  localStorage.removeItem('token')
+  localStorage.removeItem('user')
+  
+  // 清除chatService中的用户信息
+  chatService.currentUser = null
+  chatService.friends = []
+  chatService.currentChat = null
+  chatService.messages = []
+  
+  // 关闭弹窗
+  closeUserCard()
+  
+  // 跳转到登录页面
+  window.location.href = '/login'
+}
+
+// 组件挂载时检查用户信息
+onMounted(() => {
+  if (!chatService.currentUser) {
+    chatService.initializeFromStorage()
+  }
+})
 </script>
 
 <style lang="scss" scoped>
@@ -73,7 +182,6 @@ defineEmits(['setActiveSection'])
   
   &:hover {
     transform: translateY(-2px);
-    box-shadow: 0 6px 16px rgba(255, 132, 132, 0.4);
   }
 }
 
@@ -181,6 +289,68 @@ defineEmits(['setActiveSection'])
   margin-bottom: 6px;
   border: 2px solid #2632449c;
   opacity: 0.9;
+  cursor: pointer;
+  
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  cursor: pointer;
+    
+  }
+}
+
+// 用户信息卡片弹窗样式
+.user-card-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.3);
+  z-index: 1000;
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+  padding: 20px;
+}
+
+.user-card {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+  padding: 20px;
+  min-width: 280px;
+  max-width: 320px;
+  margin-top: 60px;
+  margin-left: 20px;
+  animation: slideIn 0.2s ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.user-card-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.user-card-avatar {
+  width: 60px;
+  height: 60px;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 2px solid #e2e8f0;
   
   img {
     width: 100%;
@@ -189,6 +359,60 @@ defineEmits(['setActiveSection'])
   }
 }
 
+.user-card-info {
+  flex: 1;
+}
 
+.user-name {
+  font-size: 18px;
+  font-weight: 600;
+  color: #1e293b;
+  margin: 0 0 4px 0;
+  line-height: 1.2;
+}
+
+.user-email {
+  font-size: 14px;
+  color: #64748b;
+  margin: 0;
+  line-height: 1.2;
+}
+
+.user-card-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.switch-account-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  color: #475569;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  
+  &:hover {
+    background: #f1f5f9;
+    border-color: #cbd5e1;
+    color: #334155;
+  }
+  
+  &:active {
+    transform: translateY(1px);
+  }
+}
+
+.switch-icon {
+  width: 16px;
+  height: 16px;
+  color: #64748b;
+}
 
 </style>

@@ -79,6 +79,13 @@ func (s *UserService) CreateUser(req models.UserCreateRequest) (*models.UserResp
 		}
 	}
 
+	// 自动创建AI伙伴
+	err = s.createDefaultCompanion(int(userID))
+	if err != nil {
+		// 记录错误但不影响用户创建
+		fmt.Printf("Failed to create default companion: %v\n", err)
+	}
+
 	// 返回用户信息
 	user := &models.UserResponse{
 		ID:        int(userID),
@@ -312,4 +319,43 @@ func (s *UserService) generateUniqueUsername(email string) string {
 	}
 
 	return username
+}
+
+// createDefaultCompanion 创建默认AI伙伴
+func (s *UserService) createDefaultCompanion(userID int) error {
+	// 检查用户是否已有AI伙伴
+	var count int
+	err := s.db.QueryRow("SELECT COUNT(*) FROM ai_companions WHERE user_id = ?", userID).Scan(&count)
+	if err != nil {
+		return fmt.Errorf("检查AI伙伴数量失败: %v", err)
+	}
+	if count > 0 {
+		return nil // 用户已有AI伙伴，不需要创建
+	}
+
+	// 创建AI伙伴
+	query := `
+		INSERT INTO ai_companions (
+			user_id, name, avatar_url, personality_signature,
+			conversation_fluency, knowledge_breadth, empathy_depth, 
+			creativity_level, humor_sense, growth_mode, gender,
+			created_at, updated_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+	`
+
+	_, err = s.db.Exec(query,
+		userID,
+		"空白AI",
+		"/src/img/BlankAI.png", // 默认粒子小球头像
+		"我...我是谁？你...你是谁？",     // 初始个性签名
+		1, 1, 1, 1, 1,          // 初始能力值都是1
+		"long",    // 默认长周期成长模式
+		"unknown", // 初始性别未知
+	)
+
+	if err != nil {
+		return fmt.Errorf("创建AI伙伴失败: %v", err)
+	}
+
+	return nil
 }

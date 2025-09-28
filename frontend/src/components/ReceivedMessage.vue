@@ -1,7 +1,19 @@
 <template>
   <div class="message received">
     <div class="message-avatar">
-      <img :src="character?.avatar_url || message.avatar_url || message.avatar" :alt="character?.name || message.name" />
+      <!-- AI伙伴使用粒子小球头像 -->
+      <ParticleAvatar
+        v-if="isCompanion"
+        :emotion="companionEmotion.emotion"
+        :intensity="companionEmotion.intensity"
+        :color="companionEmotion.color"
+        :brightness="companionEmotion.brightness"
+        :particle-speed="companionEmotion.particle_speed"
+        :growth-percentage="character?.growth_percentage || 0"
+        size="small"
+      />
+      <!-- 普通角色使用普通头像 -->
+      <img v-else :src="character?.avatar_url || message.avatar_url || message.avatar" :alt="character?.name || message.name" />
     </div>
     <div class="message-content">
       <!-- 文本消息 -->
@@ -31,9 +43,11 @@
 </template>
   
 <script setup>
+import { computed } from 'vue'
+import ParticleAvatar from './ParticleAvatar.vue'
 import chatService from '@/services/chatService.js'
 
-defineProps({
+const props = defineProps({
   message: {
     type: Object,
     required: true
@@ -44,11 +58,28 @@ defineProps({
   }
 })
 
+// 判断是否为AI伙伴
+const isCompanion = computed(() => {
+  return props.character?.name === '空白AI' || props.character?.type === 'companion'
+})
+
+// AI伙伴情绪状态（暂时使用默认值，实际应该从父组件传递）
+const companionEmotion = computed(() => {
+  return {
+    emotion: '平静',
+    intensity: 0.5,
+    color: '#52b4b4',
+    brightness: 0.7,
+    particle_speed: 0.5
+  }
+})
+
 // 格式化时间
 const formatTime = (timestamp) => {
-  return chatService.formatTime(timestamp)
+  const result = chatService.formatTime(timestamp);
+  return result;
 }
-  </script>
+</script>
   
   <style lang="scss" scoped>
   .message {

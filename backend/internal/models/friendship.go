@@ -22,6 +22,11 @@ type FriendInfo struct {
 	LastMessage          string     `json:"last_message"`
 	LastMessageAt        *time.Time `json:"last_message_at"`
 	IsOnline             bool       `json:"is_online"`
+	Type                 string     `json:"type"` // "character" 或 "companion"
+	// AI伙伴特有字段
+	GrowthPercentage float64 `json:"growth_percentage,omitempty"`
+	CurrentLevel     int     `json:"current_level,omitempty"`
+	TotalExperience  int     `json:"total_experience,omitempty"`
 }
 
 type AddFriendRequest struct {

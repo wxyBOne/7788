@@ -1,3 +1,4 @@
+// Package database 提供数据库连接和初始化功能
 package database
 
 import (
@@ -7,6 +8,7 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 )
 
+// InitDB 初始化数据库连接
 func InitDB(databaseURL string) (*sql.DB, error) {
 	db, err := sql.Open("mysql", databaseURL)
 	if err != nil {
@@ -19,8 +21,8 @@ func InitDB(databaseURL string) (*sql.DB, error) {
 	}
 
 	// 设置连接池参数
-	db.SetMaxOpenConns(25)
-	db.SetMaxIdleConns(5)
+	db.SetMaxOpenConns(25) // 最大打开连接数
+	db.SetMaxIdleConns(5)  // 最大空闲连接数
 
 	return db, nil
 }
